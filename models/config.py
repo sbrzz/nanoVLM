@@ -7,9 +7,9 @@ class VLMConfig:
     vit_inter_dim: int = 4 * vit_hidden_dim
     vit_patch_size: int = 16
     vit_img_size: int = 224
-    vit_n_heads: int = 12
+    vit_n_heads: int = 1
     vit_dropout: float = 0.0
-    vit_n_blocks: int = 12
+    vit_n_blocks: int = 1
     vit_ln_eps: float = 1e-6
     vit_cls_flag: bool = False
     vit_model_type: str = 'google/siglip-base-patch16-224'
@@ -20,10 +20,10 @@ class VLMConfig:
     lm_re_base: int = 100000
     lm_max_position_embeddings: int = 8192
     lm_vocab_size: int = 49152
-    lm_n_heads: int = 9
-    lm_n_kv_heads: int = 3
+    lm_n_heads: int = 1
+    lm_n_kv_heads: int = 1
     lm_dropout: float = 0.0
-    lm_n_blocks: int = 30
+    lm_n_blocks: int = 1
     lm_attn_scaling: float = 1.0
     IMAGE_TOKEN_LENGTH: int = 49
     TOTAL_SEQUENCE_LENGTH: int = 128
@@ -37,7 +37,7 @@ class VLMConfig:
     mp_pixel_shuffle_factor: int = 2
 
     vlm_load_backbone_weights: bool = True
-    vlm_checkpoint_path: str = 'checkpoints'
+    vlm_checkpoint_path: str = 'checkpoints/nanoVLM_siglip-base-patch16-224_mp2_SmolLM2-135M_1xGPU_88266samples_bs40_ep1_lr0.0001-0.002_0530'
     hf_repo_name: str = 'nanoVLM'
 
 
@@ -47,17 +47,19 @@ class TrainConfig:
     lr_backbones: float = 1e-4
     data_cutoff_idx: int = None
     val_ratio: float = 0.025
-    batch_size: int = 256
+    batch_size: int = 40
     gradient_accumulation_steps: int = 1
     mmstar_batch_size: int = 32
     max_grad_norm: float = None
     eval_in_epochs: bool = True
     eval_interval: int = 250
-    epochs: int = 5
+    epochs: int = 10
     compile: bool = False
-    resume_from_vlm_checkpoint: bool = False # Indicate if the training should be resumed from a checkpoint of the whole VLM or you want to start from scratch
-    train_dataset_path: str = 'HuggingFaceM4/the_cauldron'
-    train_dataset_name: tuple[str, ...] = ("ai2d", "aokvqa", "chart2text", "chartqa", "clevr", "cocoqa", "datikz", "diagram_image_to_text", "docvqa", "dvqa", "figureqa", "finqa", "geomverse", "hateful_memes", "hitab", "iam", "iconqa", "infographic_vqa", "intergps", "localized_narratives", "mapqa", "multihiertt", "ocrvqa", "plotqa", "raven", "rendered_text", "robut_sqa", "robut_wikisql", "robut_wtq", "scienceqa", "screen2words", "st_vqa", "tabmwp", "tallyqa", "tat_qa", "textcaps", "textvqa", "tqa", "vistext", "visual7w", "visualmrc", "vqarad", "vqav2", "vsr", "websight")
+    resume_from_vlm_checkpoint: bool = True # Indicate if the training should be resumed from a checkpoint of the whole VLM or you want to start from scratch
+    # train_dataset_path: str = 'HuggingFaceM4/the_cauldron'
+    train_dataset_path: str = 'thomasgauthier/small-cauldron'
+    # train_dataset_name: tuple[str, ...] = ("ai2d", "aokvqa", "chart2text", "chartqa", "clevr", "cocoqa", "datikz", "diagram_image_to_text", "docvqa", "dvqa", "figureqa", "finqa", "geomverse", "hateful_memes", "hitab", "iam", "iconqa", "infographic_vqa", "intergps", "localized_narratives", "mapqa", "multihiertt", "ocrvqa", "plotqa", "raven", "rendered_text", "robut_sqa", "robut_wikisql", "robut_wtq", "scienceqa", "screen2words", "st_vqa", "tabmwp", "tallyqa", "tat_qa", "textcaps", "textvqa", "tqa", "vistext", "visual7w", "visualmrc", "vqarad", "vqav2", "vsr", "websight")
+    train_dataset_name: tuple[str, ...] = ("default")
     test_dataset_path: str = "Lin-Chen/MMStar"
     wandb_entity: str = "HuggingFace" # Indicate the entity to log to in wandb
-    log_wandb: bool = True
+    log_wandb: bool = False
