@@ -23,12 +23,27 @@ class VisionLanguageModel(nn.Module):
         if load_backbone:
             print("Loading from backbone weights")
             self.vision_encoder = ViT.from_pretrained(cfg)
+            print("Vision encoder")
+            self.model_size(self.vision_encoder)
+            print("Vision decoder")
             self.decoder = LanguageModel.from_pretrained(cfg)
+            self.model_size(self.decoder)
         else:
             self.vision_encoder = ViT(cfg)
             self.decoder = LanguageModel(cfg)
         self.MP = ModalityProjector(cfg)
         self.load_backbone = load_backbone
+
+    def model_size(self, module):
+        param_size = 0
+        for param in module.parameters():
+            param_size += param.nelement() * param.element_size()
+        buffer_size = 0
+        for buffer in module.buffers():
+            buffer_size += buffer.nelement() * buffer.element_size()
+
+        size_all_mb = (param_size + buffer_size) / 1024 ** 2
+        print('model size: {:.3f}MB'.format(size_all_mb))
 
     def forward(self, input_ids, image, attention_mask=None, targets=None):
         image_embd = self.vision_encoder(image)
