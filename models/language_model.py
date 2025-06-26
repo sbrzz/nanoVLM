@@ -358,10 +358,10 @@ class LanguageModel(nn.Module):
             cfg.lm_vocab_size = original_vocab_size
             # print(f"Using original vocabulary size: {cfg.lm_vocab_size}")
         
-        cfg.lm_n_heads = hf_config.num_attention_heads
-        cfg.lm_n_kv_heads = hf_config.num_key_value_heads
-        cfg.lm_dropout = hf_config.attention_dropout
-        cfg.lm_n_blocks = hf_config.num_hidden_layers
+        # cfg.lm_n_heads = hf_config.num_attention_heads
+        # cfg.lm_n_kv_heads = hf_config.num_key_value_heads
+        # cfg.lm_dropout = hf_config.attention_dropout
+        # cfg.lm_n_blocks = hf_config.num_hidden_layers
         
         # Create our model with potentially larger vocabulary
         model = cls(cfg)
