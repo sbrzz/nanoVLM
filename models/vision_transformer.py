@@ -174,15 +174,15 @@ class ViT(nn.Module):
         from huggingface_hub import hf_hub_download
         import safetensors
 
-        hf_config = SiglipVisionConfig.from_pretrained(cfg.vit_model_type)
-        cfg.vit_dropout=hf_config.attention_dropout
-        cfg.vit_hidden_dim=hf_config.hidden_size
-        cfg.vit_img_size=hf_config.image_size
-        cfg.vit_inter_dim=hf_config.intermediate_size
-        cfg.vit_ln_eps=hf_config.layer_norm_eps
-        cfg.vit_n_heads=hf_config.num_attention_heads
-        cfg.vit_n_blocks=hf_config.num_hidden_layers
-        cfg.vit_patch_size=hf_config.patch_size
+        # hf_config = SiglipVisionConfig.from_pretrained(cfg.vit_model_type)
+        # cfg.vit_dropout=hf_config.attention_dropout
+        # cfg.vit_hidden_dim=hf_config.hidden_size
+        # cfg.vit_img_size=hf_config.image_size
+        # cfg.vit_inter_dim=hf_config.intermediate_size
+        # cfg.vit_ln_eps=hf_config.layer_norm_eps
+        # cfg.vit_n_heads=hf_config.num_attention_heads
+        # cfg.vit_n_blocks=hf_config.num_hidden_layers
+        # cfg.vit_patch_size=hf_config.patch_size
         model = cls(cfg)
         safetensors_file = hf_hub_download(repo_id=cfg.vit_model_type, filename="model.safetensors")
 
