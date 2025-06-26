@@ -180,7 +180,7 @@ def main():
     parser.add_argument('--compile', action='store_true', help='Compile the model with torch.compile.')
 
     # Measurement control args
-    parser.add_argument('--batch_sizes', type=str, default="1 2 4", help='Space-separated list of batch sizes to test (e.g., "1 2 4 8").')
+    parser.add_argument('--batch_sizes', type=str, default="20 22 24 26 40", help='Space-separated list of batch sizes to test (e.g., "1 2 4 8").')
     parser.add_argument('--num_iterations', type=int, default=2, help='Number of forward/backward passes per batch size for VRAM measurement.')
 
     args = parser.parse_args()
