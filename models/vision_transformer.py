@@ -183,6 +183,7 @@ class ViT(nn.Module):
         # cfg.vit_n_heads=hf_config.num_attention_heads
         # cfg.vit_n_blocks=hf_config.num_hidden_layers
         # cfg.vit_patch_size=hf_config.patch_size
+
         model = cls(cfg)
         safetensors_file = hf_hub_download(repo_id=cfg.vit_model_type, filename="model.safetensors")
 
@@ -247,5 +248,5 @@ class ViT(nn.Module):
                 sd[f'blocks.{i}.attn.qkv_proj.bias'].copy_(qkv_bias)
         
         model.load_state_dict(sd)
-        print(f"Successfully loaded {cfg.vit_model_type} weights from safetensors. Model has {sum(p.numel() for p in model.parameters()):,} parameters.")
+        # print(f"Successfully loaded {cfg.vit_model_type} weights from safetensors. Model has {sum(p.numel() for p in model.parameters()):,} parameters.")
         return model
