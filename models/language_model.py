@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 # https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/modeling_llama.py#L69
 class RMSNorm(nn.Module):
     def __init__(self, cfg):
@@ -11,10 +12,11 @@ class RMSNorm(nn.Module):
         self.eps = cfg.lm_rms_eps
 
     def forward(self, x):
-        irms = torch.rsqrt(torch.mean(x ** 2, dim=-1, keepdim=True) + self.eps) # inverse of RMS
+        irms = torch.rsqrt(torch.mean(x ** 2, dim=-1, keepdim=True) + self.eps)  # inverse of RMS
         x = x * irms * self.weight
 
         return x
+
 
 # Multiple derivates of Rotary Embeddings by now, this is a basic one with linear scaling to context length
 # e.g. https://github.com/huggingface/smollm/blob/main/vision/m4/models/vllama3/modeling_vllama3.py#L190
@@ -22,8 +24,8 @@ class RotaryEmbedding(nn.Module):
     def __init__(self, cfg):
         super().__init__()
         assert cfg.lm_hidden_dim % cfg.lm_n_heads == 0, "Hidden dimension must be divisible by number of heads"
-        
-        self.dim = cfg.lm_hidden_dim // cfg.lm_n_heads # dim of each head
+
+        self.dim = cfg.lm_hidden_dim // cfg.lm_n_heads  # dim of each head
         self.base = cfg.lm_re_base
         self.max_seq_len = cfg.lm_max_position_embeddings
         # Standard RoPE implementation - create frequencies for each dimension
@@ -43,30 +45,32 @@ class RotaryEmbedding(nn.Module):
             inv_freq = self.inv_freq / scale
         else:
             inv_freq = self.inv_freq
-            
+
         # Compute theta = position * frequency
         # Flatten position_ids for batch processing
         flat_position_ids = position_ids.reshape(-1).float()
-        
+
         # Element-wise outer product: [seq_len] x [dim/2] => [seq_len, dim/2]
         freqs = flat_position_ids.unsqueeze(-1) * inv_freq.unsqueeze(0)
-        
+
         # Reshape to include batch dimension
         freqs = freqs.reshape(batch_size, seq_len, -1)
-        
+
         # Now create interleaved pattern
         emb = torch.cat([freqs, freqs], dim=-1)
-        
+
         # Compute cos and sin
         cos = torch.cos(emb) * self.attention_scaling
         sin = torch.sin(emb) * self.attention_scaling
-        
+
         return cos, sin
+
 
 # Rotates half the hidden dims of the input by swapping and negating dimensions.
 def rotate_half(x):
     x1, x2 = x.chunk(2, dim=-1)
     return torch.cat((-x2, x1), dim=-1)
+
 
 # Apply rotary position embeddings to queries and keys.
 def apply_rotary_pos_embd(q, k, cos, sin, unsqueeze_dim=1):
@@ -74,13 +78,14 @@ def apply_rotary_pos_embd(q, k, cos, sin, unsqueeze_dim=1):
     # to the shape of q and k by adding the heads dimension
     cos = cos.unsqueeze(unsqueeze_dim)  # [batch_size, 1, seq_len, head_dim]
     sin = sin.unsqueeze(unsqueeze_dim)  # [batch_size, 1, seq_len, head_dim]
-    
+
     # Apply complex multiplication:
     # (q * cos) + (rotate_half(q) * sin)
     q_embed = (q * cos) + (rotate_half(q) * sin)
     k_embed = (k * cos) + (rotate_half(k) * sin)
-    
+
     return q_embed, k_embed
+
 
 # https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/modeling_llama.py#L214
 # https://github.com/huggingface/smollm/blob/main/vision/m4/models/vllama3/modeling_vllama3.py#L382
@@ -115,11 +120,14 @@ class LanguageModelGroupedQueryAttention(nn.Module):
     def forward(self, x, cos, sin, attention_mask=None, block_kv_cache=None):
         is_prefill = block_kv_cache is None
 
-        B, T_curr, C = x.size() # T_curr is the sequence length of the current input x
+        B, T_curr, C = x.size()  # T_curr is the sequence length of the current input x
 
-        q_curr = self.q_proj(x).view(B, T_curr, self.n_heads, self.head_dim).transpose(1, 2)  # (B, n_heads, T_curr, head_dim)
-        k_curr = self.k_proj(x).view(B, T_curr, self.n_kv_heads, self.head_dim).transpose(1, 2) # (B, n_kv_heads, T_curr, head_dim)
-        v_curr = self.v_proj(x).view(B, T_curr, self.n_kv_heads, self.head_dim).transpose(1, 2) # (B, n_kv_heads, T_curr, head_dim)
+        q_curr = self.q_proj(x).view(B, T_curr, self.n_heads, self.head_dim).transpose(1,
+                                                                                       2)  # (B, n_heads, T_curr, head_dim)
+        k_curr = self.k_proj(x).view(B, T_curr, self.n_kv_heads, self.head_dim).transpose(1,
+                                                                                          2)  # (B, n_kv_heads, T_curr, head_dim)
+        v_curr = self.v_proj(x).view(B, T_curr, self.n_kv_heads, self.head_dim).transpose(1,
+                                                                                          2)  # (B, n_kv_heads, T_curr, head_dim)
 
         # Apply rotary embeddings to the current q and k
         q, k_rotated = apply_rotary_pos_embd(q_curr, k_curr, cos, sin)
@@ -141,10 +149,10 @@ class LanguageModelGroupedQueryAttention(nn.Module):
             block_kv_cache = {'key': k, 'value': v}
 
         # Repeat K, V for Grouped Query Attention
-        k_exp = k.repeat_interleave(self.n_kv_groups, dim=1) # (B, n_heads, T_kv, head_dim)
-        v_exp = v.repeat_interleave(self.n_kv_groups, dim=1) # (B, n_heads, T_kv, head_dim)
-        
-        T_kv = k_exp.size(2) # Total sequence length of keys/values
+        k_exp = k.repeat_interleave(self.n_kv_groups, dim=1)  # (B, n_heads, T_kv, head_dim)
+        v_exp = v.repeat_interleave(self.n_kv_groups, dim=1)  # (B, n_heads, T_kv, head_dim)
+
+        T_kv = k_exp.size(2)  # Total sequence length of keys/values
 
         # Prepare attention mask for SDPA or manual path
         # attention_mask is (B, T_kv_total_length), 1 for attend, 0 for pad
@@ -152,7 +160,7 @@ class LanguageModelGroupedQueryAttention(nn.Module):
         if attention_mask is not None:
             # The current `attention_mask` parameter is assumed to be `[B, total_sequence_length_kv]`
             # Let's make it `[B, 1, 1, T_kv]` for SDPA.
-            mask_for_keys = attention_mask[:, :T_kv] # Ensure mask matches key length [B, T_kv]
+            mask_for_keys = attention_mask[:, :T_kv]  # Ensure mask matches key length [B, T_kv]
             additive_attn_mask = (1.0 - mask_for_keys.unsqueeze(1).unsqueeze(2).float()) * torch.finfo(q.dtype).min
             # This additive_attn_mask shape is [B, 1, 1, T_kv]
 
@@ -161,31 +169,34 @@ class LanguageModelGroupedQueryAttention(nn.Module):
             is_causal = (T_curr == T_kv and T_curr > 1)
             y = torch.nn.functional.scaled_dot_product_attention(
                 q, k_exp, v_exp,
-                attn_mask=additive_attn_mask, 
+                attn_mask=additive_attn_mask,
                 dropout_p=self.dropout if self.training else 0.0,
                 is_causal=is_causal
             )
         else:
             # Manual attention implementation
-            attn = torch.matmul(q, k_exp.transpose(2, 3)) / math.sqrt(self.head_dim) # (B, n_heads, T_curr, T_kv)
+            attn = torch.matmul(q, k_exp.transpose(2, 3)) / math.sqrt(self.head_dim)  # (B, n_heads, T_curr, T_kv)
             # During decode: no additional masking needed as [1, T_kv] is naturally causal
             if T_curr == T_kv and T_curr > 1:
-                causal_mask_val = torch.tril(torch.ones(T_curr, T_curr, device=x.device, dtype=torch.bool)).view(1, 1, T_curr, T_curr)
+                causal_mask_val = torch.tril(torch.ones(T_curr, T_curr, device=x.device, dtype=torch.bool)).view(1, 1,
+                                                                                                                 T_curr,
+                                                                                                                 T_curr)
                 attn = attn.masked_fill(~causal_mask_val, float('-inf'))
 
-            if additive_attn_mask is not None: # Additive padding mask
+            if additive_attn_mask is not None:  # Additive padding mask
                 # additive_attn_mask is [B,1,1,T_kv], needs to be broadcast to [B, n_heads, T_curr, T_kv]
-                attn = attn + additive_attn_mask 
+                attn = attn + additive_attn_mask
 
             attn = F.softmax(attn, dim=-1)
             attn = self.attn_dropout(attn)
             y = attn @ v_exp
-            
+
         y = y.transpose(1, 2).contiguous().view(B, T_curr, C)
         y = self.out_proj(y)
         y = self.resid_dropout(y)
 
         return y, block_kv_cache
+
 
 # https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/modeling_llama.py#L160
 class LanguageModelMLP(nn.Module):
@@ -206,15 +217,16 @@ class LanguageModelMLP(nn.Module):
 
         return x
 
+
 # https://github.com/meta-llama/llama3/blob/main/llama/model.py#L222
 class LanguageModelBlock(nn.Module):
     def __init__(self, cfg):
         super().__init__()
         self.mlp = LanguageModelMLP(cfg)
         self.attn = LanguageModelGroupedQueryAttention(cfg)
-        self.norm1 = RMSNorm(cfg) # Input Norm
-        self.norm2 = RMSNorm(cfg) # Post Attention Norm
-    
+        self.norm1 = RMSNorm(cfg)  # Input Norm
+        self.norm2 = RMSNorm(cfg)  # Post Attention Norm
+
     def forward(self, x, cos, sin, attention_mask=None, block_kv_cache=None):
         res = x
         x = self.norm1(x)
@@ -227,6 +239,7 @@ class LanguageModelBlock(nn.Module):
         x = res + x
 
         return x, block_kv_cache
+
 
 # https://github.com/meta-llama/llama3/blob/main/llama/model.py#L251
 class LanguageModel(nn.Module):
@@ -241,7 +254,7 @@ class LanguageModel(nn.Module):
         self.blocks = nn.ModuleList([
             LanguageModelBlock(cfg) for _ in range(cfg.lm_n_blocks)
         ])
-        self.norm = RMSNorm(cfg) # Final Norm
+        self.norm = RMSNorm(cfg)  # Final Norm
         self.head = nn.Linear(cfg.lm_hidden_dim, cfg.lm_vocab_size, bias=False)
         if self.lm_tie_weights:
             self.head.weight = self.token_embedding.weight
@@ -264,10 +277,10 @@ class LanguageModel(nn.Module):
 
         # T_curr is the length of the current input sequence
         B, T_curr, _ = x.size()
-        
+
         # Create position_ids for the current sequence based on start_pos
         current_position_ids = torch.arange(start_pos, start_pos + T_curr, device=x.device).unsqueeze(0).expand(B, -1)
-        cos, sin = self.rotary_embd(current_position_ids) # Get rotary position embeddings for current tokens
+        cos, sin = self.rotary_embd(current_position_ids)  # Get rotary position embeddings for current tokens
 
         # Initialize new KV cache if none provided
         if kv_cache is None:
@@ -279,11 +292,10 @@ class LanguageModel(nn.Module):
         x = self.norm(x)
 
         # Compute logits if we are using tokens, otherwise stay in the embedding space
-        if self.lm_use_tokens: 
-            x = self.head(x) 
+        if self.lm_use_tokens:
+            x = self.head(x)
 
         return x, kv_cache
-
 
     @torch.inference_mode()
     def generate(self, inputs, max_new_tokens=20):
@@ -293,7 +305,7 @@ class LanguageModel(nn.Module):
         generated_outputs = inputs.clone()
 
         prompt_output, kv_cache_list = self.forward(
-            generated_outputs, 
+            generated_outputs,
             attention_mask=None,
             kv_cache=None,
             start_pos=0
@@ -310,21 +322,21 @@ class LanguageModel(nn.Module):
                 next_output = last_output.unsqueeze(1)
 
             generated_outputs = torch.cat((generated_outputs, next_output), dim=1)
-            
+
             # The token being processed is `next_token`. Its position is `generated_outputs.size(1) - 1`.
             current_token_start_pos = generated_outputs.size(1) - 1
 
-            if i == max_new_tokens - 1: 
+            if i == max_new_tokens - 1:
                 break
 
             decode_step_output, kv_cache_list = self.forward(
-                next_output, 
+                next_output,
                 attention_mask=None,
                 kv_cache=kv_cache_list,
                 start_pos=current_token_start_pos
             )
-            last_output = decode_step_output[:, -1, :] 
-    
+            last_output = decode_step_output[:, -1, :]
+
         return generated_outputs
 
     # Load the model from a pretrained HuggingFace model (we don't want to have to train the Language Backbone from scratch)
@@ -334,50 +346,51 @@ class LanguageModel(nn.Module):
         from huggingface_hub import hf_hub_download
         import safetensors
         import torch.nn.init as init
-                
+
         # Load the HuggingFace config
         hf_config = AutoConfig.from_pretrained(cfg.lm_model_type)
-        
+
         # Store original HF vocab size before we modify it
         original_vocab_size = hf_config.vocab_size
         # print(f"Original vocabulary size from pretrained model: {original_vocab_size}")
-        
+
         # Configure model parameters from HF config
-        cfg.lm_hidden_dim = hf_config.hidden_size
-        cfg.lm_inter_dim = hf_config.intermediate_size
+        # cfg.lm_hidden_dim = hf_config.hidden_size
+        # cfg.lm_inter_dim = hf_config.intermediate_size
         cfg.lm_rms_eps = hf_config.rms_norm_eps
         cfg.lm_re_base = hf_config.rope_theta
         cfg.lm_max_position_embeddings = hf_config.max_position_embeddings
         # We're keeping our own vocab size in cfg, but checking it's larger than original
         if hasattr(cfg, 'lm_vocab_size'):
             if cfg.lm_vocab_size < original_vocab_size:
-                raise ValueError(f"Config vocab size ({cfg.lm_vocab_size}) is smaller than pretrained model vocab size ({original_vocab_size})")
+                raise ValueError(
+                    f"Config vocab size ({cfg.lm_vocab_size}) is smaller than pretrained model vocab size ({original_vocab_size})")
             # print(f"Using vocabulary size: {cfg.lm_vocab_size}")
         else:
             # If not specified, use the original
             cfg.lm_vocab_size = original_vocab_size
             # print(f"Using original vocabulary size: {cfg.lm_vocab_size}")
-        
+
         # cfg.lm_n_heads = hf_config.num_attention_heads
         # cfg.lm_n_kv_heads = hf_config.num_key_value_heads
         # cfg.lm_dropout = hf_config.attention_dropout
         # cfg.lm_n_blocks = hf_config.num_hidden_layers
-        
+
         # Create our model with potentially larger vocabulary
         model = cls(cfg)
         safetensors_file = hf_hub_download(repo_id=cfg.lm_model_type, filename="model.safetensors")
-        
+
         sd = model.state_dict()
-        
+
         mapping = {
             'model.embed_tokens.weight': 'token_embedding.weight',
             'model.norm.weight': 'norm.weight'
         }
-        
+
         for i in range(cfg.lm_n_blocks):
             layer_prefix = f'model.layers.{i}.'
             block_prefix = f'blocks.{i}.'
-            
+
             mapping.update({
                 f"{layer_prefix}self_attn.q_proj.weight": f"{block_prefix}attn.q_proj.weight",
                 f"{layer_prefix}self_attn.k_proj.weight": f"{block_prefix}attn.k_proj.weight",
@@ -389,26 +402,26 @@ class LanguageModel(nn.Module):
                 f"{layer_prefix}input_layernorm.weight": f"{block_prefix}norm1.weight",
                 f"{layer_prefix}post_attention_layernorm.weight": f"{block_prefix}norm2.weight"
             })
-        
+
         # Special handling for token embeddings with extended vocabulary
         has_extended_embeddings = False
         with safetensors.safe_open(filename=safetensors_file, framework="pt", device="cpu") as f:
             for hf_key, our_key in mapping.items():
                 if hf_key in f.keys() and our_key in sd:
                     tensor = f.get_tensor(hf_key)
-                    
+
                     # Special handling for token embeddings if vocab sizes differ
                     if hf_key == 'model.embed_tokens.weight' and tensor.shape[0] != sd[our_key].shape[0]:
                         has_extended_embeddings = True
                         print(f"Extending token embeddings from {tensor.shape} to {sd[our_key].shape}")
-                        
+
                         # Copy existing embeddings to the beginning of our larger embedding matrix
                         sd[our_key][:tensor.shape[0]].copy_(tensor)
-                        
+
                         # Initialize the new embeddings using the same approach as the original model
                         std = 0.02  # Common value, but you might want to adjust based on model
                         init.normal_(sd[our_key][tensor.shape[0]:], mean=0.0, std=std)
-                        
+
                         print(f"Initialized {sd[our_key].shape[0] - tensor.shape[0]} new token embeddings")
                         sd['head.weight'].copy_(sd[our_key])  # Update the head weights as well
                     elif tensor.shape == sd[our_key].shape:
@@ -420,10 +433,10 @@ class LanguageModel(nn.Module):
                         print(f"Warning: Key {hf_key} not found in safetensors file")
                     if our_key not in sd:
                         print(f"Warning: Key {our_key} not found in model state dict")
-        
+
         # Load the state dict
         model.load_state_dict(sd)
-        
+
         # Handle output projection / language modeling head
         if has_extended_embeddings and hasattr(model, 'head') and 'head.weight' in sd:
             # If we have a separate output projection layer and extended the vocab
@@ -440,11 +453,11 @@ class LanguageModel(nn.Module):
                         init.normal_(sd['head.weight'][lm_head.shape[0]:], mean=0.0, std=std)
                         # Load updated weights
                         model.load_state_dict(sd)
-        
+
         # Handle weight tying (if needed)
         if cfg.lm_tie_weights and hasattr(model, 'head') and hasattr(model, 'token_embedding'):
             model.head.weight = model.token_embedding.weight
             # print("Tied token embedding and LM head weights")
-        
-        print(f"Successfully loaded {cfg.lm_model_type} weights from safetensors. Model has {sum(p.numel() for p in model.parameters()):,} parameters.")
+
+        # print(f"Successfully loaded {cfg.lm_model_type} weights from safetensors. Model has {sum(p.numel() for p in model.parameters()):,} parameters.")
         return model
