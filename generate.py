@@ -11,8 +11,7 @@ from data.processors import get_tokenizer, get_image_processor
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Generate text from an image with nanoVLM")
+    parser = argparse.ArgumentParser(description="Generate text from an image with nanoVLM")
     parser.add_argument(
         "--checkpoint", type=str, default=None,
         help="Path to a local checkpoint (directory or safetensors/pth). If omitted, we pull from HF."

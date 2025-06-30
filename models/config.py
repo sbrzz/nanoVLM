@@ -14,8 +14,8 @@ class VLMConfig:
     vit_cls_flag: bool = False
     vit_model_type: str = 'google/siglip-base-patch16-224'
 
-    lm_hidden_dim: int = 576
-    lm_inter_dim: int = 1536
+    lm_hidden_dim: int = 72
+    lm_inter_dim: int = 192
     lm_rms_eps: float = 1e-5
     lm_re_base: int = 100000
     lm_max_position_embeddings: int = 8192
@@ -37,14 +37,14 @@ class VLMConfig:
     mp_pixel_shuffle_factor: int = 2
 
     vlm_load_backbone_weights: bool = True
-    vlm_checkpoint_path: str = 'checkpoints/nanoVLM_siglip-base-patch16-224_mp2_SmolLM2-135M_1xGPU_88266samples_bs40_ep1_lr0.0001-0.002_0530'
+    vlm_checkpoint_path: str = 'checkpoints/nanoVLM_siglip-base-patch16-224_mp2_SmolLM2-135M_1xGPU_simon'
     hf_repo_name: str = 'nanoVLM'
 
 
 @dataclass
 class TrainConfig:
     lr_mp: float = 2e-3
-    lr_backbones: float = 1e-4
+    lr_backbones: float = 1e-3
     data_cutoff_idx: int = None
     val_ratio: float = 0.025
     batch_size: int = 40
@@ -52,10 +52,10 @@ class TrainConfig:
     mmstar_batch_size: int = 32
     max_grad_norm: float = None
     eval_in_epochs: bool = True
-    eval_interval: int = 250
-    epochs: int = 10
+    eval_interval: int = 25
+    epochs: int = 100
     compile: bool = False
-    resume_from_vlm_checkpoint: bool = True # Indicate if the training should be resumed from a checkpoint of the whole VLM or you want to start from scratch
+    resume_from_vlm_checkpoint: bool = False # Indicate if the training should be resumed from a checkpoint of the whole VLM or you want to start from scratch
     # train_dataset_path: str = 'HuggingFaceM4/the_cauldron'
     train_dataset_path: str = 'thomasgauthier/small-cauldron'
     # train_dataset_name: tuple[str, ...] = ("ai2d", "aokvqa", "chart2text", "chartqa", "clevr", "cocoqa", "datikz", "diagram_image_to_text", "docvqa", "dvqa", "figureqa", "finqa", "geomverse", "hateful_memes", "hitab", "iam", "iconqa", "infographic_vqa", "intergps", "localized_narratives", "mapqa", "multihiertt", "ocrvqa", "plotqa", "raven", "rendered_text", "robut_sqa", "robut_wikisql", "robut_wtq", "scienceqa", "screen2words", "st_vqa", "tabmwp", "tallyqa", "tat_qa", "textcaps", "textvqa", "tqa", "vistext", "visual7w", "visualmrc", "vqarad", "vqav2", "vsr", "websight")
