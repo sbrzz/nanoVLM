@@ -24,7 +24,7 @@ def parse_args():
                         help="Path to input image")
     parser.add_argument("--prompt", type=str, default="What art is there in the photo?",
                         help="Text prompt to feed the model")
-    parser.add_argument("--generations", type=int, default=5,
+    parser.add_argument("--generations", type=int, default=10,
                         help="Num. of outputs to generate")
     parser.add_argument("--max_new_tokens", type=int, default=20,
                         help="Maximum number of tokens per output")

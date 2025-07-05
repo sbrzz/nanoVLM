@@ -360,6 +360,7 @@ def train(train_cfg, vlm_cfg):
             tokens_per_second = sum(dist_gather(tokens_per_second)) if is_dist() else tokens_per_second
 
             if train_cfg.eval_in_epochs and global_step % train_cfg.eval_interval == 0:  #and is_master():
+                logger.info("eval...")
                 model.eval()
                 if device == "cuda":
                     torch.cuda.empty_cache()
@@ -382,21 +383,21 @@ def train(train_cfg, vlm_cfg):
 
                     if is_master() and global_step % (train_cfg.eval_interval * 2) == 0:
                         eval_model = model.module if is_dist() else model  # unwrap the model for eval if DDP
-                        epoch_accuracy = test_mmstar(eval_model, tokenizer, test_loader, device)
-                        if epoch_accuracy > best_accuracy:
-                            best_accuracy = epoch_accuracy
-                            eval_model.save_pretrained(
-                                save_directory=os.path.join(vlm_cfg.vlm_checkpoint_path, run_name))
-                            logger.info(
-                                f"Saving new best checkpoint {os.path.join(vlm_cfg.vlm_checkpoint_path, run_name)}")
-                        if train_cfg.log_wandb and is_master():
-                            run.log({"accuracy": epoch_accuracy}, step=global_step)
-                        logger.info(
-                            f"Step: {global_step}, Loss: {batch_loss:.4f}, Tokens/s: {tokens_per_second:.2f}, Accuracy: {epoch_accuracy:.4f}")
+                        # epoch_accuracy = test_mmstar(eval_model, tokenizer, test_loader, device)
+                        # if epoch_accuracy > best_accuracy:
+                        #     best_accuracy = epoch_accuracy
+                        eval_model.save_pretrained(save_directory=os.path.join(vlm_cfg.vlm_checkpoint_path, run_name))
+                        logger.info(f"Saving new best checkpoint {os.path.join(vlm_cfg.vlm_checkpoint_path, run_name)}")
+                        # if train_cfg.log_wandb and is_master():
+                        #     run.log({"accuracy": epoch_accuracy}, step=global_step)
+                        # logger.info(
+                        #     f"Step: {global_step}, Loss: {batch_loss:.4f}, Tokens/s: {tokens_per_second:.2f}, Accuracy: {epoch_accuracy:.4f}")
                     elif is_master() and not global_step % (train_cfg.eval_interval * 4) == 0:
                         logger.info(f"Step: {global_step}, Loss: {batch_loss:.4f}, Tokens/s: {tokens_per_second:.2f}")
 
                 model.train()
+
+                logger.info("end eval...")
 
             if train_cfg.log_wandb and is_master():
                 run.log({
