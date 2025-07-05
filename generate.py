@@ -22,7 +22,7 @@ def parse_args():
     )
     parser.add_argument("--image", type=str, default="assets/image.png",
                         help="Path to input image")
-    parser.add_argument("--prompt", type=str, default="What is this?",
+    parser.add_argument("--prompt", type=str, default="What art is there in the photo?",
                         help="Text prompt to feed the model")
     parser.add_argument("--generations", type=int, default=5,
                         help="Num. of outputs to generate")
