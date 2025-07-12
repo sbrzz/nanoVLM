@@ -95,18 +95,22 @@ def get_dataloaders(train_cfg, vlm_cfg):
 
     # Load and combine all training datasets
     combined_train_data = []
-    """
+
     for dataset_name in train_cfg.train_dataset_name:
-        train_ds = load_dataset(train_cfg.train_dataset_path, dataset_name)
-        combined_train_data.append(train_ds['train'])
-    """
-    train_ds = load_dataset(train_cfg.train_dataset_path, train_cfg.train_dataset_name)
-    combined_train_data.append(train_ds['train'])
+        train_ds = load_dataset(train_cfg.train_dataset_path, dataset_name, split="train")
+        combined_train_data.append(train_ds)
+
+    additional_train_ds = load_dataset(train_cfg.extended_train_dataset_path, train_cfg.extended_train_dataset_name, split="train")
+
+    assert train_ds.features.type == additional_train_ds.features.type
+
+    combined_train_data.append(train_ds)
+    # combined_train_data.append(additional_train_ds)
+
     train_ds = concatenate_datasets(combined_train_data)
 
     test_ds = load_dataset(train_cfg.test_dataset_path)
-    train_ds = train_ds.shuffle(
-        seed=0)  # Shuffle the training dataset, so train and val get equal contributions from all concatinated datasets
+    train_ds = train_ds.shuffle(seed=0)  # Shuffle the training dataset, so train and val get equal contributions from all concatinated datasets
 
     # Apply cutoff if specified
     if train_cfg.data_cutoff_idx is None:
