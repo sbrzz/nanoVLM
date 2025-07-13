@@ -37,7 +37,7 @@ class VLMConfig:
     mp_pixel_shuffle_factor: int = 2
 
     vlm_load_backbone_weights: bool = True
-    vlm_checkpoint_path: str = 'checkpoints/nanoVLM_siglip-base-patch16-224_mp2_SmolLM2-135M_1xGPU_simon_CA_no_question'
+    vlm_checkpoint_path: str = 'checkpoints/nanoVLM_siglip-base-patch16-224_mp2_SmolLM2-135M_1xGPU_simon_CA_and_cauldron'
     hf_repo_name: str = 'nanoVLM'
 
 
@@ -53,11 +53,11 @@ class TrainConfig:
     max_grad_norm: float = None
     eval_in_epochs: bool = True
     eval_interval: int = 10
-    epochs: int = 2
+    epochs: int = 5
     compile: bool = False
     resume_from_vlm_checkpoint: bool = False  # Indicate if the training should be resumed from a checkpoint of the whole VLM or you want to start from scratch
     train_dataset_path: str = 'sbrzz/ca_augmented_wizardlm2_7b'
-    train_dataset_name: tuple[str, ...] = tuple([f"{idx-1}" for idx in range(50, 3050, 50)]) + tuple(["3036"])
+    train_dataset_name: tuple[str, ...] = tuple([f"{idx-1}" for idx in range(50, 1800, 50)]) + tuple([f"{idx-1}" for idx in range(1850, 3050, 50)]) + tuple(["3036"])
     extended_train_dataset_path: str = 'HuggingFaceM4/the_cauldron'
     extended_train_dataset_name: tuple[str, ...] = ("localized_narratives")
     test_dataset_path: str = "Lin-Chen/MMStar"

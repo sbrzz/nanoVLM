@@ -105,7 +105,7 @@ def get_dataloaders(train_cfg, vlm_cfg):
     assert train_ds.features.type == additional_train_ds.features.type
 
     combined_train_data.append(train_ds)
-    # combined_train_data.append(additional_train_ds)
+    combined_train_data.append(additional_train_ds)
 
     train_ds = concatenate_datasets(combined_train_data)
 
