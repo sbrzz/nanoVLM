@@ -1,5 +1,6 @@
 import json
 import os
+import pathlib
 import tempfile
 from dataclasses import asdict
 from typing import Optional
@@ -263,6 +264,32 @@ class VisionLanguageModel(nn.Module):
                 folder_path=save_path,
                 commit_message="Upload nanoVLM using push_to_hub",
             )
+
+    def export_to_onnx(self):
+
+        output_dir = pathlib.Path("onnx_export")
+
+        # torch.onnx.export(self.vision_encoder,
+        #                   (torch.zeros([1, 3, 224, 224], dtype=torch.float32).to("cuda")),
+        #                   # [1, 3, 224, 224] dtype=torch.float32
+        #                   output_dir / "vision_tower.onnx",
+        #                   input_names=["vision_tower_input"],
+        #                   output_names=["vision_tower_output"])
+        #
+        # torch.onnx.export(self.MP,
+        #                   (torch.zeros([1, 196, 768], dtype=torch.float32).to("cuda")),
+        #                   output_dir / "MP.onnx",
+        #                   input_names=["modality_projection_input"],
+        #                   output_names=["modality_projection_output"])
+
+        # torch.onnx.export(self.decoder,
+        #                   (torch.zeros([1, 61, 144], dtype=torch.float32),
+        #                    None,
+        #                    None,
+        #                    torch.zeros([0], dtype=torch.int32)),
+        #                   output_dir / "decoder.onnx",
+        #                   input_names=["decoder_input", "decoder_attn_mask", "decoder_kv_cache", "decoder_start_pos"],
+        #                   output_names=["decoder_output"])
 
 
 MODEL_CARD_TEMPLATE = """
