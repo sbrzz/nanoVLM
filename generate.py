@@ -1,4 +1,6 @@
 import argparse
+import pathlib
+
 import torch
 from PIL import Image
 
@@ -47,6 +49,10 @@ def main():
     model = VisionLanguageModel.from_pretrained(source).to(device)
     model.eval()
 
+    # model.export_to_onnx()
+
+    # model.decoder.export_to_onnx()
+
     tokenizer = get_tokenizer(model.cfg.lm_tokenizer)
     image_processor = get_image_processor(model.cfg.vit_img_size)
 
@@ -54,14 +60,24 @@ def main():
     encoded = tokenizer.batch_encode_plus([template], return_tensors="pt")
     tokens = encoded["input_ids"].to(device)
 
-    img = Image.open(args.image).convert("RGB")
-    img_t = image_processor(img).unsqueeze(0).to(device)
+    tmp = pathlib.Path(args.image)
+    if tmp.is_dir():
+        images = list(tmp.glob("*.jpg"))
+    else:
+        images = [tmp]
 
-    print("\nInput:\n ", args.prompt, "\n\nOutputs:")
-    for i in range(args.generations):
-        gen = model.generate(tokens, img_t, max_new_tokens=args.max_new_tokens)
-        out = tokenizer.batch_decode(gen, skip_special_tokens=True)[0]
-        print(f"  >> Generation {i+1}: {out}")
+    for src_img in images:
+
+        print(src_img)
+
+        img = Image.open(src_img).convert("RGB")
+        img_t = image_processor(img).unsqueeze(0).to(device)
+
+        print("\nInput:\n ", args.prompt, "\n\nOutputs:")
+        for i in range(args.generations):
+            gen = model.generate(tokens, img_t, max_new_tokens=args.max_new_tokens)
+            out = tokenizer.batch_decode(gen, skip_special_tokens=True)[0]
+            print(f"  >> Generation {i+1}: {out}")
 
 
 if __name__ == "__main__":
