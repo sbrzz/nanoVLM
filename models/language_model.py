@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from models.config import VLMConfig
+from loguru import logger
 
 
 # https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/modeling_llama.py#L69
@@ -117,19 +117,16 @@ class LanguageModelGroupedQueryAttention(nn.Module):
         # Use scaled dot product attention if available
         self.sdpa = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
         if not self.sdpa:
-            print("Warning: scaled dot product attention not available, using standard attention in LM.")
+            logger.warning("Warning: scaled dot product attention not available, using standard attention in LM.")
 
     def forward(self, x, cos, sin, attention_mask=None, block_kv_cache=None):
         is_prefill = block_kv_cache is None
 
         B, T_curr, C = x.size()  # T_curr is the sequence length of the current input x
 
-        q_curr = self.q_proj(x).view(B, T_curr, self.n_heads, self.head_dim).transpose(1,
-                                                                                       2)  # (B, n_heads, T_curr, head_dim)
-        k_curr = self.k_proj(x).view(B, T_curr, self.n_kv_heads, self.head_dim).transpose(1,
-                                                                                          2)  # (B, n_kv_heads, T_curr, head_dim)
-        v_curr = self.v_proj(x).view(B, T_curr, self.n_kv_heads, self.head_dim).transpose(1,
-                                                                                          2)  # (B, n_kv_heads, T_curr, head_dim)
+        q_curr = self.q_proj(x).view(B, T_curr, self.n_heads, self.head_dim).transpose(1, 2)  # (B, n_heads, T_curr, head_dim)
+        k_curr = self.k_proj(x).view(B, T_curr, self.n_kv_heads, self.head_dim).transpose(1, 2)  # (B, n_kv_heads, T_curr, head_dim)
+        v_curr = self.v_proj(x).view(B, T_curr, self.n_kv_heads, self.head_dim).transpose(1, 2)  # (B, n_kv_heads, T_curr, head_dim)
 
         # Apply rotary embeddings to the current q and k
         q, k_rotated = apply_rotary_pos_embd(q_curr, k_curr, cos, sin)
@@ -167,6 +164,9 @@ class LanguageModelGroupedQueryAttention(nn.Module):
             # This additive_attn_mask shape is [B, 1, 1, T_kv]
 
         if self.sdpa and x.device.type != 'mps':
+
+            # logger.error("attn_mask set to None, but it works on some setup...")
+
             # During decode, no additional masking needed as [1, T_kv] is naturally causal
             is_causal = (T_curr == T_kv and T_curr > 1)
             y = torch.nn.functional.scaled_dot_product_attention(
@@ -354,7 +354,7 @@ class LanguageModel(nn.Module):
 
         # Store original HF vocab size before we modify it
         original_vocab_size = hf_config.vocab_size
-        # print(f"Original vocabulary size from pretrained model: {original_vocab_size}")
+        # logger.info(f"Original vocabulary size from pretrained model: {original_vocab_size}")
 
         # Configure model parameters from HF config
         # cfg.lm_hidden_dim = hf_config.hidden_size
@@ -367,11 +367,11 @@ class LanguageModel(nn.Module):
             if cfg.lm_vocab_size < original_vocab_size:
                 raise ValueError(
                     f"Config vocab size ({cfg.lm_vocab_size}) is smaller than pretrained model vocab size ({original_vocab_size})")
-            # print(f"Using vocabulary size: {cfg.lm_vocab_size}")
+            # logger.info(f"Using vocabulary size: {cfg.lm_vocab_size}")
         else:
             # If not specified, use the original
             cfg.lm_vocab_size = original_vocab_size
-            # print(f"Using original vocabulary size: {cfg.lm_vocab_size}")
+            # logger.info(f"Using original vocabulary size: {cfg.lm_vocab_size}")
 
         # cfg.lm_n_heads = hf_config.num_attention_heads
         # cfg.lm_n_kv_heads = hf_config.num_key_value_heads
@@ -415,7 +415,7 @@ class LanguageModel(nn.Module):
                     # Special handling for token embeddings if vocab sizes differ
                     if hf_key == 'model.embed_tokens.weight' and tensor.shape[0] != sd[our_key].shape[0]:
                         has_extended_embeddings = True
-                        print(f"Extending token embeddings from {tensor.shape} to {sd[our_key].shape}")
+                        logger.info(f"Extending token embeddings from {tensor.shape} to {sd[our_key].shape}")
 
                         # Copy existing embeddings to the beginning of our larger embedding matrix
                         sd[our_key][:tensor.shape[0]].copy_(tensor)
@@ -424,17 +424,17 @@ class LanguageModel(nn.Module):
                         std = 0.02  # Common value, but you might want to adjust based on model
                         init.normal_(sd[our_key][tensor.shape[0]:], mean=0.0, std=std)
 
-                        print(f"Initialized {sd[our_key].shape[0] - tensor.shape[0]} new token embeddings")
+                        logger.info(f"Initialized {sd[our_key].shape[0] - tensor.shape[0]} new token embeddings")
                         sd['head.weight'].copy_(sd[our_key])  # Update the head weights as well
                     elif tensor.shape == sd[our_key].shape:
                         sd[our_key].copy_(tensor)
                     else:
-                        print(f"Shape mismatch for {hf_key} -> {our_key}: {tensor.shape} vs {sd[our_key].shape}")
+                        logger.info(f"Shape mismatch for {hf_key} -> {our_key}: {tensor.shape} vs {sd[our_key].shape}")
                 else:
                     if hf_key not in f.keys():
-                        print(f"Warning: Key {hf_key} not found in safetensors file")
+                        logger.warning(f"Warning: Key {hf_key} not found in safetensors file")
                     if our_key not in sd:
-                        print(f"Warning: Key {our_key} not found in model state dict")
+                        logger.warning(f"Warning: Key {our_key} not found in model state dict")
 
         # Load the state dict
         model.load_state_dict(sd)
@@ -447,7 +447,7 @@ class LanguageModel(nn.Module):
                 if 'lm_head.weight' in f.keys():
                     lm_head = f.get_tensor('lm_head.weight')
                     if lm_head.shape[0] != sd['head.weight'].shape[0]:
-                        print(f"Extending LM head from {lm_head.shape} to {sd['head.weight'].shape}")
+                        logger.info(f"Extending LM head from {lm_head.shape} to {sd['head.weight'].shape}")
                         # Copy existing weights
                         sd['head.weight'][:lm_head.shape[0]].copy_(lm_head)
                         # Initialize new weights
@@ -459,53 +459,7 @@ class LanguageModel(nn.Module):
         # Handle weight tying (if needed)
         if cfg.lm_tie_weights and hasattr(model, 'head') and hasattr(model, 'token_embedding'):
             model.head.weight = model.token_embedding.weight
-            # print("Tied token embedding and LM head weights")
+            # logger.info("Tied token embedding and LM head weights")
 
-        # print(f"Successfully loaded {cfg.lm_model_type} weights from safetensors. Model has {sum(p.numel() for p in model.parameters()):,} parameters.")
+        # logger.info(f"Successfully loaded {cfg.lm_model_type} weights from safetensors. Model has {sum(p.numel() for p in model.parameters()):,} parameters.")
         return model
-
-    def export_to_onnx(self):
-
-        input_names = ["x", "attention_mask"]
-        input_names += [f"past_key_{i}" for i in range(self.cfg.lm_n_blocks)]
-        input_names += [f"past_value_{i}" for i in range(self.cfg.lm_n_blocks)]
-        input_names += ["start_pos"]
-
-        output_names = ["logits"]
-        output_names += [f"present_key_{i}" for i in range(self.cfg.lm_n_blocks)]
-        output_names += [f"present_value_{i}" for i in range(self.cfg.lm_n_blocks)]
-
-        dynamic_axes = {
-            "x": {0: "batch", 1: "seq_len"},
-            "attention_mask": {0: "batch", 1: "seq_len"},
-            "logits": {0: "batch", 1: "seq_len"},
-            "start_pos": {0: "batch", 1: "seq_len"},
-        }
-        for i in range(self.cfg.lm_n_blocks):
-            dynamic_axes[f"past_key_{i}"] = {0: "batch", 2: "past_seq_len"}
-            dynamic_axes[f"past_value_{i}"] = {0: "batch", 2: "past_seq_len"}
-            dynamic_axes[f"present_key_{i}"] = {0: "batch", 2: "total_seq_len"}
-            dynamic_axes[f"present_value_{i}"] = {0: "batch", 2: "total_seq_len"}
-
-        """ DEFINE DUMMY INPUTS """
-
-        x = torch.zeros([1, 61, 144])
-        attention_mask = torch.zeros(1, 61)
-        kv_dummy = torch.zeros(1, 1, 61, 24)
-        start_pos = 0
-
-        """ END """
-
-        torch.onnx.export(
-            model=self,
-            args=(x, attention_mask, *kv_dummy, start_pos),
-            f="llm_with_kv_cache.onnx",
-            input_names=input_names,
-            output_names=output_names,
-            dynamic_axes=dynamic_axes,
-            opset_version=13,
-            do_constant_folding=True,
-            verbose=True
-        )
-
-        print("✅ Export complete: llm_with_kv_cache.onnx")

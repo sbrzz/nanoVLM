@@ -3,10 +3,13 @@ import contextlib
 import math
 import random
 import time
+import uuid
 from dataclasses import asdict
 from statistics import mean
 
-# import wandb
+import numpy as np
+
+import wandb
 import numpy
 import torch
 import torch.distributed as dist
@@ -86,6 +89,10 @@ def get_run_name(train_cfg, vlm_cfg):
     llm = f"{vlm_cfg.lm_model_type.split('/')[-1]}"
 
     return f"nanoVLM_{vit}_{mp}_{llm}_{num_gpus}_{dataset_size}_{batch_size}_{epochs}_{learning_rate}_{date}"
+
+
+def get_alternative_run_name() -> str:
+    return str(uuid.uuid4())
 
 
 def get_dataloaders(train_cfg, vlm_cfg):
@@ -226,24 +233,28 @@ def get_lr(it, max_lr, max_steps):
 
 
 def train(train_cfg, vlm_cfg):
+
+    wandb.login()
+
     train_loader, val_loader, test_loader = get_dataloaders(train_cfg, vlm_cfg)
     tokenizer = get_tokenizer(vlm_cfg.lm_tokenizer)
 
     total_dataset_size = len(train_loader.dataset)
-    run_name = get_run_name(train_cfg, vlm_cfg)
+    run_name = get_alternative_run_name()
+
     if train_cfg.data_cutoff_idx is None:
         run_name = run_name.replace("full_ds", f"{total_dataset_size}samples")
 
-    # if train_cfg.log_wandb and is_master():
-    #     run = wandb.init(
-    #         entity=train_cfg.wandb_entity,
-    #         project="nanoVLM",
-    #         config={
-    #             "VLMConfig": asdict(vlm_cfg),
-    #             "TrainConfig": asdict(train_cfg)
-    #         },
-    #         name=run_name,
-    #     )
+    if train_cfg.log_wandb and is_master():
+        run = wandb.init(
+            entity=train_cfg.wandb_entity,
+            project="nanoVLM",
+            config={
+                "VLMConfig": asdict(vlm_cfg),
+                "TrainConfig": asdict(train_cfg)
+            },
+            name=run_name,
+        )
 
     # Initialize model
     if train_cfg.resume_from_vlm_checkpoint:
@@ -292,6 +303,7 @@ def train(train_cfg, vlm_cfg):
 
     epoch_times = []
     best_accuracy = 0
+    best_val_loss = np.inf
     global_step = 0
     for epoch in range(train_cfg.epochs):
         epoch_start_time = time.time()
@@ -352,7 +364,7 @@ def train(train_cfg, vlm_cfg):
 
             num_tokens = torch.sum(attention_mask).item()  # Sum of attention mask gives number of tokens
             num_tokens += images.shape[0] * ((images.shape[2] / vlm_cfg.vit_patch_size) ** 2) / (
-                        vlm_cfg.mp_pixel_shuffle_factor ** 2)  # Add image tokens = batch_size * (((img_size / patch_size) ** 2) / (pixel_shuffle_factor ** 2))
+                    vlm_cfg.mp_pixel_shuffle_factor ** 2)  # Add image tokens = batch_size * (((img_size / patch_size) ** 2) / (pixel_shuffle_factor ** 2))
             total_tokens_processed += num_tokens
 
             batch_end_time = time.time()
@@ -363,12 +375,16 @@ def train(train_cfg, vlm_cfg):
             batch_loss = mean(dist_gather(batch_loss)) if is_dist() else batch_loss
             tokens_per_second = sum(dist_gather(tokens_per_second)) if is_dist() else tokens_per_second
 
-            if train_cfg.eval_in_epochs and global_step % train_cfg.eval_interval == 0:  #and is_master():
-                logger.info("eval...")
+            if train_cfg.eval_in_epochs and global_step != 0 and global_step % train_cfg.eval_interval == 0:  #and is_master():
+                logger.info(f"eval global_step {global_step}...")
                 model.eval()
                 if device == "cuda":
                     torch.cuda.empty_cache()
+
                 with torch.no_grad():
+
+                    logger.info("compute validation loss")
+
                     total_val_loss = 0
                     for batch in val_loader:
                         images = batch["image"].to(device)
@@ -380,22 +396,37 @@ def train(train_cfg, vlm_cfg):
                             _, loss = model(input_ids, images, attention_mask=attention_mask, targets=labels)
 
                         total_val_loss += loss.item()
+
                     avg_val_loss = total_val_loss / len(val_loader)
+
                     avg_val_loss = mean(dist_gather(avg_val_loss)) if is_dist() else avg_val_loss
+
                     if train_cfg.log_wandb and is_master():
                         run.log({"val_loss": avg_val_loss}, step=global_step)
 
-                    if is_master() and global_step % (train_cfg.eval_interval * 2) == 0:
+                    if avg_val_loss < best_val_loss:
                         eval_model = model.module if is_dist() else model  # unwrap the model for eval if DDP
+                        eval_model.save_pretrained(save_directory=os.path.join(vlm_cfg.vlm_checkpoint_path, run_name))
+                        logger.info(f"Saving new best checkpoint {os.path.join(vlm_cfg.vlm_checkpoint_path, run_name)} because new best loss {avg_val_loss} < {best_val_loss}")
+                        best_val_loss = avg_val_loss
+
+                    if is_master() and global_step != 0 and global_step % (train_cfg.eval_interval * 2) == 0:
+                        ...
+                        # eval_model = model.module if is_dist() else model  # unwrap the model for eval if DDP
+                        #
+                        # logger.warning("disable mmstar and best epoch on validation step...")
                         # epoch_accuracy = test_mmstar(eval_model, tokenizer, test_loader, device)
                         # if epoch_accuracy > best_accuracy:
                         #     best_accuracy = epoch_accuracy
-                        eval_model.save_pretrained(save_directory=os.path.join(vlm_cfg.vlm_checkpoint_path, run_name))
-                        logger.info(f"Saving new best checkpoint {os.path.join(vlm_cfg.vlm_checkpoint_path, run_name)}")
+
+                        # eval_model.save_pretrained(save_directory=os.path.join(vlm_cfg.vlm_checkpoint_path, run_name))
+                        # logger.info(f"Saving new best checkpoint {os.path.join(vlm_cfg.vlm_checkpoint_path, run_name)}")
+
                         # if train_cfg.log_wandb and is_master():
                         #     run.log({"accuracy": epoch_accuracy}, step=global_step)
                         # logger.info(
                         #     f"Step: {global_step}, Loss: {batch_loss:.4f}, Tokens/s: {tokens_per_second:.2f}, Accuracy: {epoch_accuracy:.4f}")
+
                     elif is_master() and not global_step % (train_cfg.eval_interval * 4) == 0:
                         logger.info(f"Step: {global_step}, Loss: {batch_loss:.4f}, Tokens/s: {tokens_per_second:.2f}")
 
@@ -431,8 +462,7 @@ def train(train_cfg, vlm_cfg):
                          "epoch_duration": epoch_duration,
                          "epoch_tokens_per_second": epoch_tokens_per_second})
 
-            logger.info(
-                f"Epoch {epoch + 1}/{train_cfg.epochs}, Train Loss: {avg_train_loss:.4f} | Time: {epoch_duration:.2f}s | T/s: {epoch_tokens_per_second:.2f}")
+            logger.info(f"Epoch {epoch + 1}/{train_cfg.epochs}, Train Loss: {avg_train_loss:.4f} | Time: {epoch_duration:.2f}s | T/s: {epoch_tokens_per_second:.2f}")
 
     # Summary Statistics
     if is_master():
