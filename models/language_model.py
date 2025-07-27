@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from models.config import VLMConfig
+
 
 # https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/modeling_llama.py#L69
 class RMSNorm(nn.Module):
@@ -461,3 +463,49 @@ class LanguageModel(nn.Module):
 
         # print(f"Successfully loaded {cfg.lm_model_type} weights from safetensors. Model has {sum(p.numel() for p in model.parameters()):,} parameters.")
         return model
+
+    def export_to_onnx(self):
+
+        input_names = ["x", "attention_mask"]
+        input_names += [f"past_key_{i}" for i in range(self.cfg.lm_n_blocks)]
+        input_names += [f"past_value_{i}" for i in range(self.cfg.lm_n_blocks)]
+        input_names += ["start_pos"]
+
+        output_names = ["logits"]
+        output_names += [f"present_key_{i}" for i in range(self.cfg.lm_n_blocks)]
+        output_names += [f"present_value_{i}" for i in range(self.cfg.lm_n_blocks)]
+
+        dynamic_axes = {
+            "x": {0: "batch", 1: "seq_len"},
+            "attention_mask": {0: "batch", 1: "seq_len"},
+            "logits": {0: "batch", 1: "seq_len"},
+            "start_pos": {0: "batch", 1: "seq_len"},
+        }
+        for i in range(self.cfg.lm_n_blocks):
+            dynamic_axes[f"past_key_{i}"] = {0: "batch", 2: "past_seq_len"}
+            dynamic_axes[f"past_value_{i}"] = {0: "batch", 2: "past_seq_len"}
+            dynamic_axes[f"present_key_{i}"] = {0: "batch", 2: "total_seq_len"}
+            dynamic_axes[f"present_value_{i}"] = {0: "batch", 2: "total_seq_len"}
+
+        """ DEFINE DUMMY INPUTS """
+
+        x = torch.zeros([1, 61, 144])
+        attention_mask = torch.zeros(1, 61)
+        kv_dummy = torch.zeros(1, 1, 61, 24)
+        start_pos = 0
+
+        """ END """
+
+        torch.onnx.export(
+            model=self,
+            args=(x, attention_mask, *kv_dummy, start_pos),
+            f="llm_with_kv_cache.onnx",
+            input_names=input_names,
+            output_names=output_names,
+            dynamic_axes=dynamic_axes,
+            opset_version=13,
+            do_constant_folding=True,
+            verbose=True
+        )
+
+        print("✅ Export complete: llm_with_kv_cache.onnx")

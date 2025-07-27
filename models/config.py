@@ -52,7 +52,7 @@ class TrainConfig:
     mmstar_batch_size: int = 32
     max_grad_norm: float = None
     eval_in_epochs: bool = True
-    eval_interval: int = 10
+    eval_interval: int = 250
     epochs: int = 5
     compile: bool = False
     resume_from_vlm_checkpoint: bool = False  # Indicate if the training should be resumed from a checkpoint of the whole VLM or you want to start from scratch
