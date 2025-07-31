@@ -1,4 +1,6 @@
 import math
+import pathlib
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -171,9 +173,9 @@ class LanguageModelGroupedQueryAttention(nn.Module):
             is_causal = (T_curr == T_kv and T_curr > 1)
             y = torch.nn.functional.scaled_dot_product_attention(
                 q, k_exp, v_exp,
-                attn_mask=additive_attn_mask,
+                attn_mask=None,
                 dropout_p=self.dropout if self.training else 0.0,
-                is_causal=is_causal
+                is_causal=True
             )
         else:
             # Manual attention implementation
@@ -273,7 +275,10 @@ class LanguageModel(nn.Module):
         elif isinstance(module, RMSNorm):
             module.weight.data.fill_(1.0)
 
-    def forward(self, x, attention_mask=None, kv_cache=None, start_pos=0):
+    def forward(self, x, kv_cache=None, start_pos=0):
+
+        attention_mask = None
+
         if self.lm_use_tokens:
             x = self.token_embedding(x)
 
@@ -308,7 +313,7 @@ class LanguageModel(nn.Module):
 
         prompt_output, kv_cache_list = self.forward(
             generated_outputs,
-            attention_mask=None,
+            # attention_mask=None,
             kv_cache=None,
             start_pos=0
         )
@@ -463,3 +468,32 @@ class LanguageModel(nn.Module):
 
         # logger.info(f"Successfully loaded {cfg.lm_model_type} weights from safetensors. Model has {sum(p.numel() for p in model.parameters()):,} parameters.")
         return model
+
+    def export_to_onnx(self, output_dir: pathlib.Path):
+
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        x = torch.zeros([1, 61, 216], dtype=torch.float32).to(device)
+        start_pos = torch.tensor(0).to(device)
+
+        kv_cache = [{"key": torch.zeros(1, 1, 0, 36).to(device), "value": torch.zeros(1, 1, 0, 36).to(device)}]
+
+        dynamic_axes = {
+            "decoder_input": {1: "seq_len"},
+            "decoder_output": {1: "seq_len"},
+            "past_key_0": {2: "post_len"},
+            "past_value_0": {2: "post_len"},
+            "present_key_0": {2: "pre_len"},
+            "present_value_0": {2: "pre_len"}
+        }
+
+        torch.onnx.export(self,
+                          (
+                              x,
+                              kv_cache,
+                              start_pos
+                          ),
+                          output_dir / "decoder.onnx",
+                          input_names=["decoder_input", "past_key_0", "past_value_0", "decoder_start_pos"],
+                          output_names=["decoder_output", "present_key_0", "present_value_0"],
+                          dynamic_axes=dynamic_axes)

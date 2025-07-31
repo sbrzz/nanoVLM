@@ -109,7 +109,7 @@ class VisionLanguageModel(nn.Module):
         # --- Multimodal Prefill Phase ---
         prefill_output, kv_cache_list = self.decoder(
             initial_combined_embeds,
-            attention_mask=attention_mask,
+            # attention_mask=attention_mask,
             kv_cache=None,
             start_pos=0
         )
@@ -150,7 +150,7 @@ class VisionLanguageModel(nn.Module):
             # With KV cache: only process the new token
             decode_step_output, kv_cache_list = self.decoder(
                 next_token_embed,
-                attention_mask=attention_mask,
+                # attention_mask=attention_mask,
                 kv_cache=kv_cache_list,
                 start_pos=current_token_start_pos
             )
@@ -281,15 +281,6 @@ class VisionLanguageModel(nn.Module):
         #                   output_dir / "MP.onnx",
         #                   input_names=["modality_projection_input"],
         #                   output_names=["modality_projection_output"])
-
-        # torch.onnx.export(self.decoder,
-        #                   (torch.zeros([1, 61, 144], dtype=torch.float32),
-        #                    None,
-        #                    None,
-        #                    torch.zeros([0], dtype=torch.int32)),
-        #                   output_dir / "decoder.onnx",
-        #                   input_names=["decoder_input", "decoder_attn_mask", "decoder_kv_cache", "decoder_start_pos"],
-        #                   output_names=["decoder_output"])
 
 
 MODEL_CARD_TEMPLATE = """
