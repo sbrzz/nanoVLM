@@ -57,7 +57,7 @@ logger.info("Decode sanity check")
 logger.info("---------------------")
 
 next_token_embed = np.load("checkpoints/decode_phase_next_token_embed_0.npy")
-start_pos = np.array(62).astype(np.int64)
+start_pos = np.array(61).astype(np.int64)
 
 # prefill can be simulated by using a zero dimension
 past_k = np.load("checkpoints/decode_phase_past_key_0.npy")
