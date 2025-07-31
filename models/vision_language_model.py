@@ -5,6 +5,8 @@ import tempfile
 from dataclasses import asdict
 from typing import Optional
 
+import numpy as np
+
 from models.utils import top_k_top_p_filtering
 from models.vision_transformer import ViT
 from models.language_model import LanguageModel
@@ -125,7 +127,7 @@ class VisionLanguageModel(nn.Module):
         newly_generated_ids_list = []
 
         # --- Decode Phase by sampling tokens autoregressively using the kv-cache ---
-        for _ in range(max_new_tokens):
+        for idx in range(max_new_tokens):
             if greedy:
                 next_token_id = torch.argmax(current_logits, dim=-1, keepdim=True)
             else:
@@ -147,6 +149,10 @@ class VisionLanguageModel(nn.Module):
                 attention_mask = torch.cat((attention_mask, torch.ones((batch_size, 1), device=attention_mask.device,
                                                                        dtype=attention_mask.dtype)), dim=1)
 
+            np.save(f"checkpoints/decode_phase_next_token_embed_{idx}.npy", next_token_embed.cpu().numpy())
+            np.save(f"checkpoints/decode_phase_past_key_{idx}.npy", kv_cache_list[0]["key"].cpu().numpy())
+            np.save(f"checkpoints/decode_phase_past_value_{idx}.npy", kv_cache_list[0]["value"].cpu().numpy())
+
             # With KV cache: only process the new token
             decode_step_output, kv_cache_list = self.decoder(
                 next_token_embed,
@@ -154,6 +160,10 @@ class VisionLanguageModel(nn.Module):
                 kv_cache=kv_cache_list,
                 start_pos=current_token_start_pos
             )
+
+            np.save(f"checkpoints/decode_phase_decode_step_output_{idx}.npy", decode_step_output.cpu().numpy())
+            np.save(f"checkpoints/decode_phase_present_key_{idx}.npy", kv_cache_list[0]["key"].cpu().numpy())
+            np.save(f"checkpoints/decode_phase_present_value_{idx}.npy", kv_cache_list[0]["value"].cpu().numpy())
 
             last_token_output = decode_step_output[:, -1, :]
 
