@@ -476,32 +476,32 @@ class LanguageModel(nn.Module):
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        # x = torch.zeros([1, 61, 216], dtype=torch.float32).to(device)
-        # start_pos = torch.tensor(0).to(device)
-        #
-        # kv_cache = [{"key": torch.zeros(1, 1, 0, 36).to(device), "value": torch.zeros(1, 1, 0, 36).to(device)}]
-        #
-        # dynamic_axes = {
-        #     "decoder_input": {1: "seq_len"},
-        #     "decoder_output": {1: "seq_len"},
-        #     "past_key_0": {2: "post_len"},
-        #     "past_value_0": {2: "post_len"},
-        #     "present_key_0": {2: "pre_len"},
-        #     "present_value_0": {2: "pre_len"}
-        # }
-        #
-        # logger.info("Export decoder")
-        #
-        # torch.onnx.export(self,
-        #                   (
-        #                       x,
-        #                       kv_cache,
-        #                       start_pos
-        #                   ),
-        #                   output_dir / "decoder.onnx",
-        #                   input_names=["decoder_input", "past_key_0", "past_value_0", "decoder_start_pos"],
-        #                   output_names=["decoder_output", "present_key_0", "present_value_0"],
-        #                   dynamic_axes=dynamic_axes)
+        x = torch.zeros([1, 61, 216], dtype=torch.float32).to(device)
+        start_pos = torch.tensor(0).to(device)
+
+        kv_cache = [{"key": torch.zeros(1, 1, 0, 36).to(device), "value": torch.zeros(1, 1, 0, 36).to(device)}]
+
+        dynamic_axes = {
+            "decoder_input": {1: "seq_len"},
+            "decoder_output": {1: "seq_len"},
+            "past_key_0": {2: "post_len"},
+            "past_value_0": {2: "post_len"},
+            "present_key_0": {2: "pre_len"},
+            "present_value_0": {2: "pre_len"}
+        }
+
+        logger.info("Export decoder")
+
+        torch.onnx.export(self,
+                          (
+                              x,
+                              kv_cache,
+                              start_pos
+                          ),
+                          output_dir / "decoder.onnx",
+                          input_names=["decoder_input", "past_key_0", "past_value_0", "decoder_start_pos"],
+                          output_names=["decoder_output", "present_key_0", "present_value_0"],
+                          dynamic_axes=dynamic_axes)
 
         # export token_embedding and head if model is in embedding mode
         if not self.lm_use_tokens:
