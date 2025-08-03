@@ -49,9 +49,7 @@ def main():
     model = VisionLanguageModel.from_pretrained(source).to(device)
     model.eval()
 
-    # output_dir = pathlib.Path("onnx_export")
-    #
-    # model.decoder.export_to_onnx(output_dir)
+    model.export_to_onnx()
 
     tokenizer = get_tokenizer(model.cfg.lm_tokenizer)
     image_processor = get_image_processor(model.cfg.vit_img_size)

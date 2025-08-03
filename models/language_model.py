@@ -476,10 +476,15 @@ class LanguageModel(nn.Module):
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        x = torch.zeros([1, 61, 216], dtype=torch.float32).to(device)
+        x = torch.zeros([1, 61, self.cfg.lm_hidden_dim], dtype=torch.float32).to(device)
         start_pos = torch.tensor(0).to(device)
 
-        kv_cache = [{"key": torch.zeros(1, 1, 0, 36).to(device), "value": torch.zeros(1, 1, 0, 36).to(device)}]
+        kv_cache = [
+            {
+                "key": torch.zeros(1, 1, 0, 36).to(device),
+                "value": torch.zeros(1, 1, 0, 36).to(device)
+            }
+        ]
 
         dynamic_axes = {
             "decoder_input": {1: "seq_len"},
@@ -505,7 +510,7 @@ class LanguageModel(nn.Module):
 
         # export token_embedding and head if model is in embedding mode
         if not self.lm_use_tokens:
-            x = torch.zeros([1, 1, self.cfg.lm_hidden_dim], dtype=torch.long).to(device)
+            x = torch.zeros([1, 12], dtype=torch.long).to(device)
             dynamic_axes = {
                 "tokens": {1: "seq_len"}
             }
@@ -515,7 +520,7 @@ class LanguageModel(nn.Module):
                 x,
                 output_dir / "decoder_token_embedding.onnx",
                 input_names=["tokens"],
-                output_names=["wmbedding"],
+                output_names=["embedding"],
                 dynamic_axes=dynamic_axes
             )
 

@@ -279,18 +279,24 @@ class VisionLanguageModel(nn.Module):
 
         output_dir = pathlib.Path("onnx_export")
 
-        # torch.onnx.export(self.vision_encoder,
-        #                   (torch.zeros([1, 3, 224, 224], dtype=torch.float32).to("cuda")),
-        #                   # [1, 3, 224, 224] dtype=torch.float32
-        #                   output_dir / "vision_tower.onnx",
-        #                   input_names=["vision_tower_input"],
-        #                   output_names=["vision_tower_output"])
-        #
-        # torch.onnx.export(self.MP,
-        #                   (torch.zeros([1, 196, 768], dtype=torch.float32).to("cuda")),
-        #                   output_dir / "MP.onnx",
-        #                   input_names=["modality_projection_input"],
-        #                   output_names=["modality_projection_output"])
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        x = torch.zeros([1, 3, self.cfg.vit_img_size, self.cfg.vit_img_size], dtype=torch.float32).to(device)
+        torch.onnx.export(self.vision_encoder,
+                          x,
+                          # [1, 3, 224, 224] dtype=torch.float32
+                          output_dir / "vision_tower.onnx",
+                          input_names=["vision_tower_input"],
+                          output_names=["vision_tower_output"])
+
+        x = torch.zeros([1, 196, self.cfg.vit_hidden_dim], dtype=torch.float32).to(device)
+        torch.onnx.export(self.MP,
+                          x,
+                          output_dir / "MP.onnx",
+                          input_names=["modality_projection_input"],
+                          output_names=["modality_projection_output"])
+
+        self.decoder.export_to_onnx(output_dir)
 
 
 MODEL_CARD_TEMPLATE = """
