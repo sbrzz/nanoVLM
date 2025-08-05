@@ -178,7 +178,7 @@ class LanguageModelGroupedQueryAttention(nn.Module):
                 q, k_exp, v_exp,
                 attn_mask=None,
                 dropout_p=self.dropout if self.training else 0.0,
-                is_causal=True
+                is_causal=is_causal  # if is_casual is a boolean (required by export), then the generation fails
             )
         else:
             # Manual attention implementation

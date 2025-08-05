@@ -149,9 +149,9 @@ class VisionLanguageModel(nn.Module):
                 attention_mask = torch.cat((attention_mask, torch.ones((batch_size, 1), device=attention_mask.device,
                                                                        dtype=attention_mask.dtype)), dim=1)
 
-            np.save(f"checkpoints/decode_phase_next_token_embed_{idx}.npy", next_token_embed.cpu().numpy())
-            np.save(f"checkpoints/decode_phase_past_key_{idx}.npy", kv_cache_list[0]["key"].cpu().numpy())
-            np.save(f"checkpoints/decode_phase_past_value_{idx}.npy", kv_cache_list[0]["value"].cpu().numpy())
+            # np.save(f"checkpoints/decode_phase_next_token_embed_{idx}.npy", next_token_embed.cpu().numpy())
+            # np.save(f"checkpoints/decode_phase_past_key_{idx}.npy", kv_cache_list[0]["key"].cpu().numpy())
+            # np.save(f"checkpoints/decode_phase_past_value_{idx}.npy", kv_cache_list[0]["value"].cpu().numpy())
 
             # With KV cache: only process the new token
             decode_step_output, kv_cache_list = self.decoder(
@@ -161,9 +161,9 @@ class VisionLanguageModel(nn.Module):
                 start_pos=current_token_start_pos
             )
 
-            np.save(f"checkpoints/decode_phase_decode_step_output_{idx}.npy", decode_step_output.cpu().numpy())
-            np.save(f"checkpoints/decode_phase_present_key_{idx}.npy", kv_cache_list[0]["key"].cpu().numpy())
-            np.save(f"checkpoints/decode_phase_present_value_{idx}.npy", kv_cache_list[0]["value"].cpu().numpy())
+            # np.save(f"checkpoints/decode_phase_decode_step_output_{idx}.npy", decode_step_output.cpu().numpy())
+            # np.save(f"checkpoints/decode_phase_present_key_{idx}.npy", kv_cache_list[0]["key"].cpu().numpy())
+            # np.save(f"checkpoints/decode_phase_present_value_{idx}.npy", kv_cache_list[0]["value"].cpu().numpy())
 
             last_token_output = decode_step_output[:, -1, :]
 
