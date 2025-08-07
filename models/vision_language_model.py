@@ -2,6 +2,7 @@ import json
 import os
 import pathlib
 import tempfile
+import uuid
 from dataclasses import asdict
 from typing import Optional
 
@@ -70,8 +71,7 @@ class VisionLanguageModel(nn.Module):
             # Combine image and token attention masks
             attention_mask = torch.cat((image_attention_mask, attention_mask), dim=1)
 
-        logits, _ = self.decoder(combined_embd,
-                                 attention_mask=attention_mask)  # Not logits yet, but easier to return like this
+        logits, _ = self.decoder(combined_embd)  # Not logits yet, but easier to return like this
 
         loss = None
         if targets is not None:
@@ -277,7 +277,10 @@ class VisionLanguageModel(nn.Module):
 
     def export_to_onnx(self):
 
-        output_dir = pathlib.Path("onnx_export")
+        output_dir = pathlib.Path("onnx_export") / str(uuid.uuid4())
+
+        if not output_dir.exists():
+            output_dir.mkdir(parents=True)
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
 

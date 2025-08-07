@@ -1954,6 +1954,28 @@ typing_extensions = ">=4.7.1"
 reference = ["Pillow", "google-re2 ; python_version < \"3.13\""]
 
 [[package]]
+name = "onnxconverter-common"
+version = "1.15.0"
+description = "ONNX Converter and Optimization Tools"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "onnxconverter_common-1.15.0-py2.py3-none-any.whl", hash = "sha256:24579ed1bb3c10beca39a4517d196c17341911be5bd09bd0e6050a7379a2a7d9"},
+]
+
+[package.dependencies]
+numpy = "*"
+onnx = "*"
+packaging = "*"
+protobuf = ">=3.20.2"
+
+[package.extras]
+dev = ["onnxconverter-common[lint,test]"]
+lint = ["pyright", "ruff"]
+test = ["pytest", "pytest-cov"]
+
+[[package]]
 name = "onnxruntime-gpu"
 version = "1.21.1"
 description = "ONNX Runtime is a runtime accelerator for Machine Learning models"
@@ -4082,4 +4104,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "559af93b1232b7dd149c751666579040568c344fb4408d9104a9ba17be2dbf6c"
+content-hash = "8be497ef33f7ce4a8318ec7212d1ee4820606a5fb794d78fcaaafcfc6d3ffbc0"

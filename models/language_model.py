@@ -479,10 +479,12 @@ class LanguageModel(nn.Module):
         x = torch.zeros([1, 61, self.cfg.lm_hidden_dim], dtype=torch.float32).to(device)
         start_pos = torch.tensor(0).to(device)
 
+        dim_per_head = int(self.cfg.lm_hidden_dim / self.cfg.lm_n_heads)
+
         kv_cache = [
             {
-                "key": torch.zeros(1, 1, 0, 36).to(device),
-                "value": torch.zeros(1, 1, 0, 36).to(device)
+                "key": torch.zeros(1, 1, 0, dim_per_head).to(device),
+                "value": torch.zeros(1, 1, 0, dim_per_head).to(device)
             }
         ]
 
