@@ -14,8 +14,8 @@ class VLMConfig:
     vit_cls_flag: bool = False
     vit_model_type: str = 'google/siglip-base-patch16-224'
 
-    lm_hidden_dim: int = 216
-    lm_inter_dim: int = 192
+    lm_hidden_dim: int = 216 * 2
+    lm_inter_dim: int = 192 * 2
     lm_rms_eps: float = 1e-5
     lm_re_base: int = 100000
     lm_max_position_embeddings: int = 8192
@@ -37,7 +37,7 @@ class VLMConfig:
     mp_pixel_shuffle_factor: int = 2
 
     vlm_load_backbone_weights: bool = True
-    vlm_checkpoint_path: str = 'checkpoints/20250723_00'
+    vlm_checkpoint_path: str = 'checkpoints/20250809_00'
     hf_repo_name: str = 'nanoVLM'
 
 
