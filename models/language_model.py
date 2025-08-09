@@ -373,8 +373,7 @@ class LanguageModel(nn.Module):
         # We're keeping our own vocab size in cfg, but checking it's larger than original
         if hasattr(cfg, 'lm_vocab_size'):
             if cfg.lm_vocab_size < original_vocab_size:
-                raise ValueError(
-                    f"Config vocab size ({cfg.lm_vocab_size}) is smaller than pretrained model vocab size ({original_vocab_size})")
+                logger.warning("Trying smaller vocabulary size wrt pretrained")
             # logger.info(f"Using vocabulary size: {cfg.lm_vocab_size}")
         else:
             # If not specified, use the original
