@@ -419,8 +419,8 @@ class LanguageModel(nn.Module):
                 if hf_key in f.keys() and our_key in sd:
                     tensor = f.get_tensor(hf_key)
 
-                    # Special handling for token embeddings if vocab sizes differ
-                    if hf_key == 'model.embed_tokens.weight' and tensor.shape[0] != sd[our_key].shape[0]:
+                    # Special handling for token embeddings if vocab size is larger than original
+                    if hf_key == 'model.embed_tokens.weight' and tensor.shape[0] < sd[our_key].shape[0]:
                         has_extended_embeddings = True
                         logger.info(f"Extending token embeddings from {tensor.shape} to {sd[our_key].shape}")
 
@@ -433,6 +433,11 @@ class LanguageModel(nn.Module):
 
                         logger.info(f"Initialized {sd[our_key].shape[0] - tensor.shape[0]} new token embeddings")
                         sd['head.weight'].copy_(sd[our_key])  # Update the head weights as well
+                    elif hf_key == 'model.embed_tokens.weight' and tensor.shape[0] > sd[our_key].shape[0]:
+                        logger.warning("Your are trying a lower_size vocab {} wrt original.")
+                        # we are trying to use a token_embedding lower than original
+                        init.normal_(sd[our_key], mean=0.0, std=0.02)
+                        sd['head.weight'].copy_(sd[our_key])
                     elif tensor.shape == sd[our_key].shape:
                         sd[our_key].copy_(tensor)
                     else:
