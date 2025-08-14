@@ -14,14 +14,14 @@ class VLMConfig:
     vit_cls_flag: bool = False
     vit_model_type: str = 'google/siglip-base-patch16-224'
 
-    lm_hidden_dim: int = 216 * 2
-    lm_inter_dim: int = 192 * 2
+    lm_hidden_dim: int = 216 * 1
+    lm_inter_dim: int = 192 * 10
     lm_rms_eps: float = 1e-5
     lm_re_base: int = 100000
     lm_max_position_embeddings: int = 8192
     lm_vocab_size: int = 49152
-    lm_n_heads: int = 6
-    lm_n_kv_heads: int = 1
+    lm_n_heads: int = 12
+    lm_n_kv_heads: int = 4
     lm_dropout: float = 0.0
     lm_n_blocks: int = 1
     lm_attn_scaling: float = 1.0
