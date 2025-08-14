@@ -239,6 +239,12 @@ def train(train_cfg, vlm_cfg):
     train_loader, val_loader, test_loader = get_dataloaders(train_cfg, vlm_cfg)
     tokenizer = get_tokenizer(vlm_cfg.lm_tokenizer)
 
+    # # COUNT USED TOKEN IDS
+    # ids_set = set()
+    # for batch in train_loader:
+    #     ids_set = ids_set.union(set(batch["input_ids"].cpu().numpy().flatten()))
+    #     ids_set = ids_set.union(set(batch["labels"].cpu().numpy().flatten()))
+
     total_dataset_size = len(train_loader.dataset)
     run_name = get_alternative_run_name()
 
