@@ -126,12 +126,9 @@ class LanguageModelGroupedQueryAttention(nn.Module):
 
         B, T_curr, C = x.size()  # T_curr is the sequence length of the current input x
 
-        q_curr = self.q_proj(x).view(B, T_curr, self.n_heads, self.head_dim).transpose(1,
-                                                                                       2)  # (B, n_heads, T_curr, head_dim)
-        k_curr = self.k_proj(x).view(B, T_curr, self.n_kv_heads, self.head_dim).transpose(1,
-                                                                                          2)  # (B, n_kv_heads, T_curr, head_dim)
-        v_curr = self.v_proj(x).view(B, T_curr, self.n_kv_heads, self.head_dim).transpose(1,
-                                                                                          2)  # (B, n_kv_heads, T_curr, head_dim)
+        q_curr = self.q_proj(x).view(B, T_curr, self.n_heads, self.head_dim).transpose(1, 2)  # (B, n_heads, T_curr, head_dim)
+        k_curr = self.k_proj(x).view(B, T_curr, self.n_kv_heads, self.head_dim).transpose(1, 2)  # (B, n_kv_heads, T_curr, head_dim)
+        v_curr = self.v_proj(x).view(B, T_curr, self.n_kv_heads, self.head_dim).transpose(1, 2)  # (B, n_kv_heads, T_curr, head_dim)
 
         # Apply rotary embeddings to the current q and k
         q, k_rotated = apply_rotary_pos_embd(q_curr, k_curr, cos, sin)
@@ -176,7 +173,7 @@ class LanguageModelGroupedQueryAttention(nn.Module):
             is_causal = (T_curr == T_kv and T_curr > 1)
             y = torch.nn.functional.scaled_dot_product_attention(
                 q, k_exp, v_exp,
-                attn_mask=None,
+                attn_mask=None if is_causal else additive_attn_mask,
                 dropout_p=self.dropout if self.training else 0.0,
                 is_causal=is_causal  # if is_casual is a boolean (required by export), then the generation fails
             )
@@ -278,9 +275,7 @@ class LanguageModel(nn.Module):
         elif isinstance(module, RMSNorm):
             module.weight.data.fill_(1.0)
 
-    def forward(self, x, kv_cache=None, start_pos=0):
-
-        attention_mask = None
+    def forward(self, x, attention_mask=None, kv_cache=None, start_pos=0):
 
         if self.lm_use_tokens:
             x = self.token_embedding(x)

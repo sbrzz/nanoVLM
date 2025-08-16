@@ -71,7 +71,8 @@ class VisionLanguageModel(nn.Module):
             # Combine image and token attention masks
             attention_mask = torch.cat((image_attention_mask, attention_mask), dim=1)
 
-        logits, _ = self.decoder(combined_embd)  # Not logits yet, but easier to return like this
+        logits, _ = self.decoder(combined_embd,
+                                 attention_mask=attention_mask)  # Not logits yet, but easier to return like this
 
         loss = None
         if targets is not None:

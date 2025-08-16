@@ -37,7 +37,7 @@ class VLMConfig:
     mp_pixel_shuffle_factor: int = 2
 
     vlm_load_backbone_weights: bool = True
-    vlm_checkpoint_path: str = 'checkpoints/20250809_00'
+    vlm_checkpoint_path: str = 'checkpoints/20250815_00'
     hf_repo_name: str = 'nanoVLM'
 
 
