@@ -9,6 +9,7 @@ dependencies = [
     "einops>=0.8.2",
     "loguru>=0.7.3",
     "ollama>=0.6.2",
+    "pandas>=3.0.3",
     "torch>=2.7.1",
     "torchaudio>=2.7.1",
     "torchvision>=0.22.1",
