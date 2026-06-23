@@ -32,17 +32,18 @@ dependencies = [
     "onnxconverter-common (>=1.15.0,<2.0.0)",
 ]
 
-
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=78"]
+build-backend = "setuptools.build_meta"
 
-[[tool.poetry.source]]
+[[tool.uv.index]]
 name = "pytorch-gpu"
 url = "https://download.pytorch.org/whl/cu128"
-priority = "explicit"
+explicit = true
 
+[tool.uv.sources]
+torch = { index = "pytorch-gpu" }
+torchvision = { index = "pytorch-gpu" }
 
-[tool.poetry.dependencies]
-torch = {source = "pytorch-gpu"}
-torchvision = {source = "pytorch-gpu"}
+[tool.uv]
+package = false
