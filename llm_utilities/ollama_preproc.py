@@ -11,8 +11,7 @@ import ollama  # Ensure this supports async – if not, see notes below
 
 NUMBER_OF_ANSWERS = 2
 
-def upload_to_hf(__dataset, __dataset_name, __workdir):
-    features = Features({
+FEATURES = Features({
         "images": Sequence(feature=HFImage()),  # can be PIL.Image or path
         "texts": [{
             "user": Value("string"),
@@ -21,8 +20,9 @@ def upload_to_hf(__dataset, __dataset_name, __workdir):
         }]
     })
 
-    ds_info = datasets.DatasetInfo(description=__dataset_name, version="0.0.1", features=features)
-    ds = Dataset.from_list(__dataset, info=ds_info, features=features)
+def upload_to_hf(__dataset, __dataset_name, __workdir):
+    ds_info = datasets.DatasetInfo(description=__dataset_name, version="0.0.1", features=FEATURES)
+    ds = Dataset.from_list(__dataset, info=ds_info, features=FEATURES)
 
     dict_ds = datasets.DatasetDict({"train": ds})
 
@@ -115,7 +115,7 @@ def save_batches(
 
         batch = final_dataset[start:end]
 
-        ds = Dataset.from_list(batch)
+        ds = Dataset.from_list(batch, features=FEATURES)
 
         shard_dir = output_dir / f"shard_{start:06d}_{end:06d}"
         ds.save_to_disk(str(shard_dir))
