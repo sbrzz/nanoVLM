@@ -63,3 +63,4 @@ class TrainConfig:
     test_dataset_path: str = "Lin-Chen/MMStar"
     wandb_entity: str = "sbrzz-cultural-arts-com"  # Indicate the entity to log to in wandb
     log_wandb: bool = True
+    patience: int = 5

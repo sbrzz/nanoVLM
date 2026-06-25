@@ -270,16 +270,12 @@ def train(train_cfg, vlm_cfg):
 
     if is_master():
         logger.info(f"nanoVLM initialized with {sum(p.numel() for p in model.parameters()):,} parameters")
-        logger.info(
-            f"Training summary{' (global)' if is_dist() else ''}: {len(train_loader.dataset)} samples, {int(len(train_loader) * get_world_size())} batches/epoch, batch size {int(train_cfg.batch_size * get_world_size() * train_cfg.gradient_accumulation_steps)}{', training on ' + str(get_world_size()) + ' GPUs' if is_dist() else ''}")
+        logger.info(f"Training summary{' (global)' if is_dist() else ''}: {len(train_loader.dataset)} samples, {int(len(train_loader) * get_world_size())} batches/epoch, batch size {int(train_cfg.batch_size * get_world_size() * train_cfg.gradient_accumulation_steps)}{', training on ' + str(get_world_size()) + ' GPUs' if is_dist() else ''}")
         if is_dist():
-            logger.info(
-                f"Training summary per GPU: {len(train_loader)} batches/epoch, batch size {train_loader.batch_size}")
-        logger.info(
-            f"Validation summary{' (global)' if is_dist() else ''}: {len(val_loader.dataset)} samples, {int(len(val_loader) * get_world_size())} batches/epoch, batch size {int(train_cfg.batch_size * get_world_size() * train_cfg.gradient_accumulation_steps)}{', training on ' + str(get_world_size()) + ' GPUs' if is_dist() else ''}")
+            logger.info(f"Training summary per GPU: {len(train_loader)} batches/epoch, batch size {train_loader.batch_size}")
+        logger.info(f"Validation summary{' (global)' if is_dist() else ''}: {len(val_loader.dataset)} samples, {int(len(val_loader) * get_world_size())} batches/epoch, batch size {int(train_cfg.batch_size * get_world_size() * train_cfg.gradient_accumulation_steps)}{', training on ' + str(get_world_size()) + ' GPUs' if is_dist() else ''}")
         if is_dist():
-            logger.info(
-                f"Validation summary per GPU: {len(val_loader)} batches/epoch, batch size {val_loader.batch_size}")
+            logger.info(f"Validation summary per GPU: {len(val_loader)} batches/epoch, batch size {val_loader.batch_size}")
 
     # Define optimizer groups
     # Since we have pretrained vision and language backbones, but a newly initialized modality projection layer, it doesn't make sense to train them with the same learning rate
@@ -311,6 +307,7 @@ def train(train_cfg, vlm_cfg):
     best_accuracy = 0
     best_val_loss = np.inf
     global_step = 0
+    patience = train_cfg.patience
     for epoch in range(train_cfg.epochs):
         epoch_start_time = time.time()
         model.train()
@@ -415,6 +412,8 @@ def train(train_cfg, vlm_cfg):
                         eval_model.save_pretrained(save_directory=os.path.join(vlm_cfg.vlm_checkpoint_path, run_name))
                         logger.info(f"Saving new best checkpoint {os.path.join(vlm_cfg.vlm_checkpoint_path, run_name)} because new best loss {avg_val_loss} < {best_val_loss}")
                         best_val_loss = avg_val_loss
+                    else:
+                        patience -= 1
 
                     if is_master() and global_step != 0 and global_step % (train_cfg.eval_interval * 2) == 0:
                         ...
@@ -435,6 +434,10 @@ def train(train_cfg, vlm_cfg):
 
                     elif is_master() and not global_step % (train_cfg.eval_interval * 4) == 0:
                         logger.info(f"Step: {global_step}, Loss: {batch_loss:.4f}, Tokens/s: {tokens_per_second:.2f}")
+
+                    if patience == 0:
+                        logger.info("Patience finisched, exiting the training loop.")
+                        break
 
                 model.train()
 
@@ -469,6 +472,10 @@ def train(train_cfg, vlm_cfg):
                          "epoch_tokens_per_second": epoch_tokens_per_second})
 
             logger.info(f"Epoch {epoch + 1}/{train_cfg.epochs}, Train Loss: {avg_train_loss:.4f} | Time: {epoch_duration:.2f}s | T/s: {epoch_tokens_per_second:.2f}")
+
+        if patience == 0:
+            logger.info("Patience finisched, exiting the training loop.")
+            break
 
     # Summary Statistics
     if is_master():

@@ -363,7 +363,7 @@ class LanguageModel(nn.Module):
         # cfg.lm_hidden_dim = hf_config.hidden_size
         # cfg.lm_inter_dim = hf_config.intermediate_size
         cfg.lm_rms_eps = hf_config.rms_norm_eps
-        cfg.lm_re_base = hf_config.rope_theta
+        cfg.lm_re_base = hf_config.rope_theta # different syntax for transformers > 5.x
         cfg.lm_max_position_embeddings = hf_config.max_position_embeddings
         # We're keeping our own vocab size in cfg, but checking it's larger than original
         if hasattr(cfg, 'lm_vocab_size'):
