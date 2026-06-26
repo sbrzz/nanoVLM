@@ -522,12 +522,15 @@ def train(train_cfg, vlm_cfg):
         logger.info(f"Average time per epoch: {avg_epoch_time:.2f}s")
         logger.info(f"Average time per sample: {avg_time_per_sample:.4f}s")
 
-        # # Push the best model to the hub (Please set your user name in the config!)
-        # if vlm_cfg.hf_repo_name is not None:
-        #     logger.info("Training complete. Pushing model to Hugging Face Hub...")
-        #     hf_model = VisionLanguageModel.from_pretrained(os.path.join(vlm_cfg.vlm_checkpoint_path, run_name))
-        #     hf_model.push_to_hub(vlm_cfg.hf_repo_name)
-        #
+        # Push the best model to the hub (Please set your user name in the config!)
+        if vlm_cfg.hf_repo_name is not None:
+            logger.info("Training complete. Pushing model to Hugging Face Hub...")
+            hf_model = VisionLanguageModel.from_pretrained(os.path.join(vlm_cfg.vlm_checkpoint_path, run_name))
+
+            model_name = f"{vlm_cfg.hf_repo_name}/nanoVLM-{vlm_cfg.lm_model_type}-{vlm_cfg.vit_model_type}"
+
+            hf_model.push_to_hub(model_name, private=False)
+        
         # if train_cfg.log_wandb:
         #     run.summary["avg_epoch_time"] = avg_epoch_time
         #     run.summary["avg_time_per_sample"] = avg_time_per_sample
