@@ -14,7 +14,7 @@ import numpy
 import torch
 import torch.distributed as dist
 import torch.optim as optim
-from datasets import load_dataset, concatenate_datasets
+from datasets import load_dataset, concatenate_datasets, Sequence, Value, Features, Image
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 
@@ -95,41 +95,77 @@ def get_alternative_run_name() -> str:
     return str(uuid.uuid4())
 
 
+def remove_source_from_texts(item):
+
+    user = item['texts'][0]["user"]
+    assistant = item['texts'][0]["assistant"]
+
+    item["textsNew"] = [{
+        "user": user,
+        "assistant": assistant
+    }]
+
+    return item
+
+
+def unified_features(ds1, ds2):
+    unified_features = ds2.features.copy()
+
+    # Add missing columns to ds1 with None values
+    missing_cols = {
+        'source': None,
+        'relevance_ratings': None,
+        'relevance_min': None,
+        'image_correspondence_ratings': None,
+        'image_correspondence_min': None,
+        'formatting_ratings': None,
+        'formatting_min': None,
+        'visual_dependency_ratings': None,
+        'visual_dependency_min': None,
+    }
+
+    for col, default in missing_cols.items():
+        ds1 = ds1.add_column(col, [default] * len(ds1))
+
+    ds1 = ds1.map(remove_source_from_texts, batched=False, remove_columns=["texts"])
+
+    ds1 = ds1.rename_column("textsNew", "texts")
+    # Cast both to the unified schema
+    ds1 = ds1.cast(unified_features)
+    
+    return ds1
+
+
 def get_dataloaders(train_cfg, vlm_cfg):
     # Create datasets
     image_processor = get_image_processor(vlm_cfg.vit_img_size)
     tokenizer = get_tokenizer(vlm_cfg.lm_tokenizer)
 
-    # Load and combine all training datasets
-    combined_train_data = []
-
     for dataset_name in train_cfg.train_dataset_name:
         train_ds = load_dataset(train_cfg.train_dataset_path, dataset_name, split="train")
-        combined_train_data.append(train_ds)
 
     additional_train_ds = load_dataset(train_cfg.extended_train_dataset_path, train_cfg.extended_train_dataset_name, split="train")
 
+    train_ds = unified_features(train_ds, additional_train_ds)
+
     assert train_ds.features.type == additional_train_ds.features.type
 
-    combined_train_data.append(train_ds)
-    combined_train_data.append(additional_train_ds)
-
-    train_ds = concatenate_datasets(combined_train_data)
+    full_dataset = concatenate_datasets([train_ds, additional_train_ds])
 
     test_ds = load_dataset(train_cfg.test_dataset_path)
-    train_ds = train_ds.shuffle(seed=0)  # Shuffle the training dataset, so train and val get equal contributions from all concatinated datasets
+    full_dataset = full_dataset.shuffle(seed=0)  # Shuffle the training dataset, so train and val get equal contributions from all concatinated datasets
 
     # Apply cutoff if specified
     if train_cfg.data_cutoff_idx is None:
-        total_samples = len(train_ds)  # Use the entire dataset
+        total_samples = len(full_dataset)  # Use the entire dataset
     else:
-        total_samples = min(len(train_ds), train_cfg.data_cutoff_idx)
+        total_samples = min(len(full_dataset), train_cfg.data_cutoff_idx)
 
     val_size = int(total_samples * train_cfg.val_ratio)
     train_size = total_samples - val_size
 
-    train_dataset = VQADataset(train_ds.select(range(train_size)), tokenizer, image_processor)
-    val_dataset = VQADataset(train_ds.select(range(train_size, total_samples)), tokenizer, image_processor)
+    train_dataset = VQADataset(full_dataset.select(range(train_size)), tokenizer, image_processor)
+    val_dataset = VQADataset(full_dataset.select(range(train_size, total_samples)), tokenizer, image_processor)
     test_dataset = MMStarDataset(test_ds['val'], tokenizer, image_processor)
 
     # Create collators

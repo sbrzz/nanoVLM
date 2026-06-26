@@ -58,8 +58,8 @@ class TrainConfig:
     resume_from_vlm_checkpoint: bool = False  # Indicate if the training should be resumed from a checkpoint of the whole VLM or you want to start from scratch
     train_dataset_path: str = 'cultural-arts/ca_augmented_qwen25-14b-instruct'
     train_dataset_name: tuple[str, ...] = tuple(["default"])
-    extended_train_dataset_path: str = 'HuggingFaceM4/the_cauldron'
-    extended_train_dataset_name: tuple[str, ...] = ("localized_narratives")
+    extended_train_dataset_path: str = 'HuggingFaceM4/FineVision'
+    extended_train_dataset_name: tuple[str, ...] = ("google_landmarks")
     test_dataset_path: str = "Lin-Chen/MMStar"
     wandb_entity: str = "sbrzz-cultural-arts-com"  # Indicate the entity to log to in wandb
     log_wandb: bool = True
