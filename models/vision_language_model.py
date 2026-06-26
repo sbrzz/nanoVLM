@@ -256,7 +256,7 @@ class VisionLanguageModel(nn.Module):
         from huggingface_hub import create_repo, upload_folder
 
         # Create repo
-        repo_url = create_repo(repo_id=repo_id, private=private, exist_ok=True)
+        repo_url = create_repo(repo_id=repo_id, private=private, exist_ok=True, token=os.getenv("HF_TOKEN", ""))
         repo_id = repo_url.repo_id
         print("Created repo: ", repo_url)
 
