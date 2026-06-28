@@ -14,7 +14,7 @@ import numpy
 import torch
 import torch.distributed as dist
 import torch.optim as optim
-from datasets import load_dataset, concatenate_datasets
+from datasets import load_dataset, concatenate_datasets, Sequence, Value, Features, Image
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 
@@ -95,41 +95,77 @@ def get_alternative_run_name() -> str:
     return str(uuid.uuid4())
 
 
+def remove_source_from_texts(item):
+
+    user = item['texts'][0]["user"]
+    assistant = item['texts'][0]["assistant"]
+
+    item["textsNew"] = [{
+        "user": user,
+        "assistant": assistant
+    }]
+
+    return item
+
+
+def unified_features(ds1, ds2):
+    unified_features = ds2.features.copy()
+
+    # Add missing columns to ds1 with None values
+    missing_cols = {
+        'source': None,
+        'relevance_ratings': None,
+        'relevance_min': None,
+        'image_correspondence_ratings': None,
+        'image_correspondence_min': None,
+        'formatting_ratings': None,
+        'formatting_min': None,
+        'visual_dependency_ratings': None,
+        'visual_dependency_min': None,
+    }
+
+    for col, default in missing_cols.items():
+        ds1 = ds1.add_column(col, [default] * len(ds1))
+
+    ds1 = ds1.map(remove_source_from_texts, batched=False, remove_columns=["texts"])
+
+    ds1 = ds1.rename_column("textsNew", "texts")
+    # Cast both to the unified schema
+    ds1 = ds1.cast(unified_features)
+    
+    return ds1
+
+
 def get_dataloaders(train_cfg, vlm_cfg):
     # Create datasets
     image_processor = get_image_processor(vlm_cfg.vit_img_size)
     tokenizer = get_tokenizer(vlm_cfg.lm_tokenizer)
 
-    # Load and combine all training datasets
-    combined_train_data = []
-
     for dataset_name in train_cfg.train_dataset_name:
         train_ds = load_dataset(train_cfg.train_dataset_path, dataset_name, split="train")
-        combined_train_data.append(train_ds)
 
     additional_train_ds = load_dataset(train_cfg.extended_train_dataset_path, train_cfg.extended_train_dataset_name, split="train")
 
+    train_ds = unified_features(train_ds, additional_train_ds)
+
     assert train_ds.features.type == additional_train_ds.features.type
 
-    combined_train_data.append(train_ds)
-    combined_train_data.append(additional_train_ds)
-
-    train_ds = concatenate_datasets(combined_train_data)
+    full_dataset = concatenate_datasets([train_ds, additional_train_ds])
 
     test_ds = load_dataset(train_cfg.test_dataset_path)
-    train_ds = train_ds.shuffle(seed=0)  # Shuffle the training dataset, so train and val get equal contributions from all concatinated datasets
+    full_dataset = full_dataset.shuffle(seed=0)  # Shuffle the training dataset, so train and val get equal contributions from all concatinated datasets
 
     # Apply cutoff if specified
     if train_cfg.data_cutoff_idx is None:
-        total_samples = len(train_ds)  # Use the entire dataset
+        total_samples = len(full_dataset)  # Use the entire dataset
     else:
-        total_samples = min(len(train_ds), train_cfg.data_cutoff_idx)
+        total_samples = min(len(full_dataset), train_cfg.data_cutoff_idx)
 
     val_size = int(total_samples * train_cfg.val_ratio)
     train_size = total_samples - val_size
 
-    train_dataset = VQADataset(train_ds.select(range(train_size)), tokenizer, image_processor)
-    val_dataset = VQADataset(train_ds.select(range(train_size, total_samples)), tokenizer, image_processor)
+    train_dataset = VQADataset(full_dataset.select(range(train_size)), tokenizer, image_processor)
+    val_dataset = VQADataset(full_dataset.select(range(train_size, total_samples)), tokenizer, image_processor)
     test_dataset = MMStarDataset(test_ds['val'], tokenizer, image_processor)
 
     # Create collators
@@ -270,16 +306,12 @@ def train(train_cfg, vlm_cfg):
 
     if is_master():
         logger.info(f"nanoVLM initialized with {sum(p.numel() for p in model.parameters()):,} parameters")
-        logger.info(
-            f"Training summary{' (global)' if is_dist() else ''}: {len(train_loader.dataset)} samples, {int(len(train_loader) * get_world_size())} batches/epoch, batch size {int(train_cfg.batch_size * get_world_size() * train_cfg.gradient_accumulation_steps)}{', training on ' + str(get_world_size()) + ' GPUs' if is_dist() else ''}")
+        logger.info(f"Training summary{' (global)' if is_dist() else ''}: {len(train_loader.dataset)} samples, {int(len(train_loader) * get_world_size())} batches/epoch, batch size {int(train_cfg.batch_size * get_world_size() * train_cfg.gradient_accumulation_steps)}{', training on ' + str(get_world_size()) + ' GPUs' if is_dist() else ''}")
         if is_dist():
-            logger.info(
-                f"Training summary per GPU: {len(train_loader)} batches/epoch, batch size {train_loader.batch_size}")
-        logger.info(
-            f"Validation summary{' (global)' if is_dist() else ''}: {len(val_loader.dataset)} samples, {int(len(val_loader) * get_world_size())} batches/epoch, batch size {int(train_cfg.batch_size * get_world_size() * train_cfg.gradient_accumulation_steps)}{', training on ' + str(get_world_size()) + ' GPUs' if is_dist() else ''}")
+            logger.info(f"Training summary per GPU: {len(train_loader)} batches/epoch, batch size {train_loader.batch_size}")
+        logger.info(f"Validation summary{' (global)' if is_dist() else ''}: {len(val_loader.dataset)} samples, {int(len(val_loader) * get_world_size())} batches/epoch, batch size {int(train_cfg.batch_size * get_world_size() * train_cfg.gradient_accumulation_steps)}{', training on ' + str(get_world_size()) + ' GPUs' if is_dist() else ''}")
         if is_dist():
-            logger.info(
-                f"Validation summary per GPU: {len(val_loader)} batches/epoch, batch size {val_loader.batch_size}")
+            logger.info(f"Validation summary per GPU: {len(val_loader)} batches/epoch, batch size {val_loader.batch_size}")
 
     # Define optimizer groups
     # Since we have pretrained vision and language backbones, but a newly initialized modality projection layer, it doesn't make sense to train them with the same learning rate
@@ -311,6 +343,7 @@ def train(train_cfg, vlm_cfg):
     best_accuracy = 0
     best_val_loss = np.inf
     global_step = 0
+    patience = train_cfg.patience
     for epoch in range(train_cfg.epochs):
         epoch_start_time = time.time()
         model.train()
@@ -415,6 +448,8 @@ def train(train_cfg, vlm_cfg):
                         eval_model.save_pretrained(save_directory=os.path.join(vlm_cfg.vlm_checkpoint_path, run_name))
                         logger.info(f"Saving new best checkpoint {os.path.join(vlm_cfg.vlm_checkpoint_path, run_name)} because new best loss {avg_val_loss} < {best_val_loss}")
                         best_val_loss = avg_val_loss
+                    else:
+                        patience -= 1
 
                     if is_master() and global_step != 0 and global_step % (train_cfg.eval_interval * 2) == 0:
                         ...
@@ -435,6 +470,10 @@ def train(train_cfg, vlm_cfg):
 
                     elif is_master() and not global_step % (train_cfg.eval_interval * 4) == 0:
                         logger.info(f"Step: {global_step}, Loss: {batch_loss:.4f}, Tokens/s: {tokens_per_second:.2f}")
+
+                    if patience == 0:
+                        logger.info("Patience finisched, exiting the training loop.")
+                        break
 
                 model.train()
 
@@ -470,6 +509,10 @@ def train(train_cfg, vlm_cfg):
 
             logger.info(f"Epoch {epoch + 1}/{train_cfg.epochs}, Train Loss: {avg_train_loss:.4f} | Time: {epoch_duration:.2f}s | T/s: {epoch_tokens_per_second:.2f}")
 
+        if patience == 0:
+            logger.info("Patience finisched, exiting the training loop.")
+            break
+
     # Summary Statistics
     if is_master():
         avg_epoch_time = sum(epoch_times) / len(epoch_times)
@@ -479,12 +522,15 @@ def train(train_cfg, vlm_cfg):
         logger.info(f"Average time per epoch: {avg_epoch_time:.2f}s")
         logger.info(f"Average time per sample: {avg_time_per_sample:.4f}s")
 
-        # # Push the best model to the hub (Please set your user name in the config!)
-        # if vlm_cfg.hf_repo_name is not None:
-        #     logger.info("Training complete. Pushing model to Hugging Face Hub...")
-        #     hf_model = VisionLanguageModel.from_pretrained(os.path.join(vlm_cfg.vlm_checkpoint_path, run_name))
-        #     hf_model.push_to_hub(vlm_cfg.hf_repo_name)
-        #
+        # Push the best model to the hub (Please set your user name in the config!)
+        if vlm_cfg.hf_repo_name is not None:
+            logger.info("Training complete. Pushing model to Hugging Face Hub...")
+            hf_model = VisionLanguageModel.from_pretrained(os.path.join(vlm_cfg.vlm_checkpoint_path, run_name))
+
+            model_name = f"{vlm_cfg.hf_repo_name}/nanoVLM-{vlm_cfg.lm_model_type}-{vlm_cfg.vit_model_type}"
+
+            hf_model.push_to_hub(model_name, private=False)
+        
         # if train_cfg.log_wandb:
         #     run.summary["avg_epoch_time"] = avg_epoch_time
         #     run.summary["avg_time_per_sample"] = avg_time_per_sample
