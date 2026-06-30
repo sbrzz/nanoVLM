@@ -69,7 +69,8 @@ class VQACollator(object):  # Visual Question Answering Collator
             "image": images,
             "input_ids": input_ids,
             "attention_mask": attention_mask,
-            "labels": labels
+            "labels": labels,
+            "answers": answers
         }
 
 class MMStarCollator(object):  # https://huggingface.co/datasets/Lin-Chen/MMStar

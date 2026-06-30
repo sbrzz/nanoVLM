@@ -30,7 +30,7 @@ def top_k_top_p_filtering(logits, top_k=0, top_p=1.0, filter_value=-float('Inf')
     top_k = min(top_k, logits.size(-1))  # Safety
 
     if top_k > 0:
-        # Remove all tokens with a probability less than the top-k tokens
+        # Remove all tokens with a probability less than the SMALLEST top-k token values
         indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
         logits = logits.masked_fill(indices_to_remove, filter_value)
 
