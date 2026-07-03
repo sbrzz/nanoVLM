@@ -5,7 +5,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from data.collators import VQACollator
 from data.datasets import VQADataset
-from data.processors import get_image_processor, get_tokenizer
+from data.processors import get_image_processor, get_inference_augmenter, get_tokenizer
 from models.vision_language_model import VisionLanguageModel
 
 PUBLISH_TO_HUB = False
@@ -82,6 +82,7 @@ def main():
     
     tokenizer = get_tokenizer(model.cfg.lm_tokenizer)
     image_processor = get_image_processor(model.cfg.vit_img_size)
+    augmenter = get_inference_augmenter(model.cfg.vit_img_size)
     
     template = f"Question: {args.prompt} Answer:"
     encoded = tokenizer.batch_encode_plus([template], return_tensors="pt")
@@ -90,7 +91,7 @@ def main():
     tokens = tokens.repeat(args.batch_size, 1)
     
     raw_dataset = load_dataset(args.hf_dataset, name="default", split="train")
-    vqa_dataset = VQADataset(raw_dataset, tokenizer, image_processor)
+    vqa_dataset = VQADataset(raw_dataset, tokenizer, image_processor, augmenter)
 
     vqa_collator = VQACollator(tokenizer, model.cfg.lm_max_length)
     test_loader = DataLoader(
@@ -102,13 +103,16 @@ def main():
     )
     
     images_pool = []
-    generated_content = []
+    generated_content_greedy = []
+    generated_content_stochastic = []
+    generated_content_augmented = []
     ground_truth = []
     art_names = []
 
     for batch in tqdm(test_loader):
 
         images: list[torch.Tensor] = batch["image"].to(device)
+        augmented_images: list[torch.Tensor] = batch["augmented_image"].to(device)
         
         for img in images:
             detached_img = img.cpu().detach().numpy()
@@ -131,13 +135,33 @@ def main():
             if tokens.shape[0] != images.shape[0]:
                 tokens = tokens[:tokens.shape[0], ...]
             
+            """ Greedy generation """
+            
             gen = model.generate(tokens, images, max_new_tokens=100, greedy=True)
-            out = tokenizer.batch_decode(gen, skip_special_tokens=True)
+            out_greedy = tokenizer.batch_decode(gen, skip_special_tokens=True)
             
-            out = first_sentence_filter(out)
+            out_greedy = first_sentence_filter(out_greedy)
+            generated_content_greedy.extend(out_greedy)
+            
+            """ Stochastic generation """
+            
+            gen = model.generate(tokens, images, max_new_tokens=100, greedy=False)
+            out_stochastic = tokenizer.batch_decode(gen, skip_special_tokens=True)
+            
+            out_stochastic = first_sentence_filter(out_stochastic)
+            generated_content_stochastic.extend(out_stochastic)
+            
+            """ Augmented generation """
+            
+            gen = model.generate(tokens, augmented_images, max_new_tokens=100)
+            out_augmented = tokenizer.batch_decode(gen, skip_special_tokens=True)
+            
+            out_augmented = first_sentence_filter(out_augmented)
+            generated_content_augmented.extend(out_augmented)
+            
+            """ Other stuff """
+                
             answer = eos_remove_filter(batch['answers'])
-            
-            generated_content.extend(out)
             ground_truth.extend(answer)
             
             if 'extra' in batch.keys():
@@ -148,11 +172,25 @@ def main():
             print(e)
             continue
         
-    print()
+        
+    name_in_description_greedy_accuracy = 0
+    name_in_description_stochastic_accuracy = 0
+    name_in_description_gen_aug_accuracy = 0
+    for gen_greedy, gen_stochastic, gen_aug, art_name in zip(generated_content_greedy, generated_content_stochastic, generated_content_augmented, art_names):
+        if art_name in gen_greedy:
+            name_in_description_greedy_accuracy += 1
+        if art_name in gen_stochastic:
+            name_in_description_stochastic_accuracy += 1
+        if art_name in gen_aug:
+            name_in_description_gen_aug_accuracy += 1
+            
+    print(f"Name in description greedy accuracy: {name_in_description_greedy_accuracy / len(generated_content_greedy)}")
+    print(f"Name in description stochastic accuracy: {name_in_description_stochastic_accuracy / len(generated_content_greedy)}")
+    print(f"Name in description gen_aug accuracy: {name_in_description_gen_aug_accuracy / len(generated_content_greedy)}")
         
     if PUBLISH_TO_HUB:
         print("Publish to hub")
-        publish_to_hub(images_pool, generated_content, ground_truth, args.hf_target_dataset)
+        publish_to_hub(images_pool, gen_greedy, ground_truth, args.hf_target_dataset)
 
 if __name__ == "__main__":
     main()

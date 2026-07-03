@@ -6,10 +6,11 @@ import models.config as cfg
 
 
 class VQADataset(Dataset):  # Visual Question Answering Dataset
-    def __init__(self, dataset, tokenizer, image_processor):
+    def __init__(self, dataset, tokenizer, image_processor, augmentation=None):
         self.dataset = dataset
         self.tokenizer = tokenizer
         self.image_processor = image_processor
+        self.augmentation = augmentation
 
     def __len__(self):
         return len(self.dataset)
@@ -34,6 +35,10 @@ class VQADataset(Dataset):  # Visual Question Answering Dataset
             # Create empty tensor with right dimensions as fallback
             processed_image = torch.zeros(
                 3, cfg.VLMConfig.vit_img_size, cfg.VLMConfig.vit_img_size)
+            
+        augmented_image = None
+        if self.augmentation:
+            augmented_image = self.augmentation(image)
 
         # Process text (also a list)
         text_data = item['texts']
@@ -51,7 +56,8 @@ class VQADataset(Dataset):  # Visual Question Answering Dataset
         output = {
             "image": processed_image,
             "text_data": formatted_text,
-            "answer": answer
+            "answer": answer,
+            "augmented_image": augmented_image
         }
         
         if 'extra' in item.keys():

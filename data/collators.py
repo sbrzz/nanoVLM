@@ -9,6 +9,8 @@ class VQACollator(object):  # Visual Question Answering Collator
         images = [item["image"] for item in batch]
         texts = [item["text_data"] for item in batch]
         answers = [item["answer"] for item in batch]
+        augmented_images = [item["augmented_image"] for item in batch]
+        
         try:
             extra = [item["extra"] for item in batch]
         except:
@@ -16,6 +18,9 @@ class VQACollator(object):  # Visual Question Answering Collator
 
         # Stack images
         images = torch.stack(images)
+        
+        # Stack augmented images
+        augmented_images = torch.stack(augmented_images)
 
         # Create inputs by concatenating the question and answer
         input_sequences = []
@@ -75,7 +80,8 @@ class VQACollator(object):  # Visual Question Answering Collator
             "attention_mask": attention_mask,
             "labels": labels,
             "answers": answers,
-            "extra": extra
+            "extra": extra,
+            "augmented_image": augmented_images
         }
 
 class MMStarCollator(object):  # https://huggingface.co/datasets/Lin-Chen/MMStar

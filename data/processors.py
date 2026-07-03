@@ -15,3 +15,10 @@ def get_image_processor(img_size):
         transforms.Resize((img_size, img_size)),
         transforms.ToTensor()
     ])
+
+def get_inference_augmenter(img_size):  
+    return transforms.Compose([
+        transforms.Resize((img_size, img_size)),
+        transforms.RandomAffine(degrees=2, translate=(0.1, 0.1), scale=(0.9, 1.1)),
+        transforms.ToTensor()
+    ])
