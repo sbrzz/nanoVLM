@@ -8,6 +8,8 @@ from data.datasets import VQADataset
 from data.processors import get_image_processor, get_tokenizer
 from models.vision_language_model import VisionLanguageModel
 
+PUBLISH_TO_HUB = False
+
 def parse_args():
     
     parser = argparse.ArgumentParser(description="Generate text from an image with nanoVLM")
@@ -102,6 +104,7 @@ def main():
     images_pool = []
     generated_content = []
     ground_truth = []
+    art_names = []
 
     for batch in tqdm(test_loader):
 
@@ -126,7 +129,7 @@ def main():
         try:
             
             if tokens.shape[0] != images.shape[0]:
-                images = images[:tokens.shape[0], ...]
+                tokens = tokens[:tokens.shape[0], ...]
             
             gen = model.generate(tokens, images, max_new_tokens=100, greedy=True)
             out = tokenizer.batch_decode(gen, skip_special_tokens=True)
@@ -136,12 +139,20 @@ def main():
             
             generated_content.extend(out)
             ground_truth.extend(answer)
+            
+            if 'extra' in batch.keys():
+                for i in range(len(images)):
+                    art_names.append(batch['extra'][i]["art_name"])
+            
         except Exception as e:
             print(e)
             continue
         
-    print("Publish to hub")
-    publish_to_hub(images_pool, generated_content, ground_truth, args.hf_target_dataset)
+    print()
+        
+    if PUBLISH_TO_HUB:
+        print("Publish to hub")
+        publish_to_hub(images_pool, generated_content, ground_truth, args.hf_target_dataset)
 
 if __name__ == "__main__":
     main()

@@ -48,11 +48,16 @@ class VQADataset(Dataset):  # Visual Question Answering Dataset
 
         formatted_text = f"Question: {question} Answer:"
 
-        return {
+        output = {
             "image": processed_image,
             "text_data": formatted_text,
             "answer": answer
         }
+        
+        if 'extra' in item.keys():
+            output['extra'] = item['extra']
+
+        return output
 
 
 class MMStarDataset(Dataset):  # https://huggingface.co/datasets/Lin-Chen/MMStar

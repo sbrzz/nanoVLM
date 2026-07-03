@@ -9,6 +9,10 @@ class VQACollator(object):  # Visual Question Answering Collator
         images = [item["image"] for item in batch]
         texts = [item["text_data"] for item in batch]
         answers = [item["answer"] for item in batch]
+        try:
+            extra = [item["extra"] for item in batch]
+        except:
+            extra = [None] * len(batch)
 
         # Stack images
         images = torch.stack(images)
@@ -70,7 +74,8 @@ class VQACollator(object):  # Visual Question Answering Collator
             "input_ids": input_ids,
             "attention_mask": attention_mask,
             "labels": labels,
-            "answers": answers
+            "answers": answers,
+            "extra": extra
         }
 
 class MMStarCollator(object):  # https://huggingface.co/datasets/Lin-Chen/MMStar
