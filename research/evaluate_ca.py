@@ -1,3 +1,8 @@
+from datetime import datetime
+import pathlib
+import time
+
+import numpy as np
 import torch
 import argparse
 from datasets import load_dataset, Features, Dataset, Image, Value
@@ -17,6 +22,7 @@ def parse_args():
     parser.add_argument("hf_dataset", type=str, help="Hf VQA dataset to test")
     parser.add_argument("batch_size", type=int, default=20, help="Eval batch size")
     parser.add_argument("hf_target_dataset", type=str, help="Hf VQA dataset to test")
+    parser.add_argument("tmp_dir", type=str, help="Path to tmp dir")
     parser.add_argument("--prompt", type=str, default="Describe the art in this image", help="Text prompt to feed the model")
     parser.add_argument("--generations", type=int, default=1, help="Num. of outputs to generate")
     parser.add_argument("--eos_token_id", type=str, default=".", help="EOS token id to stop generation")
@@ -54,8 +60,6 @@ def publish_to_hub(images, answers, ground_truths, hf_target_dataset):
         private=True,
     )
     
-    
-
 def first_sentence_filter(gen, eos_token="."):
     return [item.split(eos_token)[0] for item in gen]
 
@@ -137,11 +141,24 @@ def main():
             
             """ Greedy generation """
             
-            gen = model.generate(tokens, images, max_new_tokens=100, greedy=True)
+            gen, mp_embedding = model.generate(tokens, images, max_new_tokens=100, greedy=True, return_mp_embedding=True)
             out_greedy = tokenizer.batch_decode(gen, skip_special_tokens=True)
             
             out_greedy = first_sentence_filter(out_greedy)
             generated_content_greedy.extend(out_greedy)
+            
+            # save mp_embedding
+            mp_embedding = mp_embedding.cpu().detach().numpy()
+            
+            if 'extra' in batch.keys():
+                for i in range(len(images)):
+                    current_name = batch['extra'][i]["art_name"]
+                    current_name = current_name.replace(" ", "_")
+                    current_embedding = mp_embedding[i, :]
+                    stem = datetime.now().strftime('%Y%m%d%H%M%S%f')
+                    dest_path = pathlib.Path(args.tmp_dir) / "mp_embedding" / current_name / f"{stem}.npy"
+                    dest_path.parent.mkdir(parents=True, exist_ok=True)
+                    np.save(dest_path, current_embedding.reshape(-1))
             
             """ Stochastic generation """
             
@@ -187,6 +204,12 @@ def main():
     print(f"Name in description greedy accuracy: {name_in_description_greedy_accuracy / len(generated_content_greedy)}")
     print(f"Name in description stochastic accuracy: {name_in_description_stochastic_accuracy / len(generated_content_greedy)}")
     print(f"Name in description gen_aug accuracy: {name_in_description_gen_aug_accuracy / len(generated_content_greedy)}")
+    
+    """
+    Name in description greedy accuracy: 0.8320754716981132
+    Name in description stochastic accuracy: 0.8089622641509434
+    Name in description gen_aug accuracy: 0.7235849056603774
+    """
         
     if PUBLISH_TO_HUB:
         print("Publish to hub")

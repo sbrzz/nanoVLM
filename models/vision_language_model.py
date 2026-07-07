@@ -85,7 +85,7 @@ class VisionLanguageModel(nn.Module):
 
     @torch.inference_mode()
     def generate(self, input_ids, image, attention_mask=None, max_new_tokens=5, top_k=50, top_p=0.9, temperature=0.5,
-                 greedy=False):
+                 greedy=False, return_mp_embedding=False):
 
         # 1. Process image
         image_embd = self.vision_encoder(image)  # [B, T_img, D_model]
@@ -176,8 +176,13 @@ class VisionLanguageModel(nn.Module):
 
         if not newly_generated_ids_list:  # Handle case where max_new_tokens might be 0
             return torch.empty((batch_size, 0), dtype=torch.long, device=input_ids.device)
+        
+        new_list: torch.Tensor = torch.cat(newly_generated_ids_list, dim=1)
+        
+        if return_mp_embedding:
+            return new_list, image_embd
 
-        return torch.cat(newly_generated_ids_list, dim=1)
+        return new_list
 
     @classmethod
     def from_pretrained(
