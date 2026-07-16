@@ -144,13 +144,17 @@ def get_dataloaders(train_cfg, vlm_cfg):
     for dataset_name in train_cfg.train_dataset_name:
         train_ds = load_dataset(train_cfg.train_dataset_path, dataset_name, split="train")
 
-    additional_train_ds = load_dataset(train_cfg.extended_train_dataset_path, train_cfg.extended_train_dataset_name, split="train")
+    additional_train_ds = []
+    for addition_ds in train_cfg.extended_train_dataset_name:
+        logger.info(f"Loading dataset {addition_ds}")
+        additional_train_ds.append(load_dataset(train_cfg.extended_train_dataset_path, addition_ds, split="train"))
 
-    train_ds = unified_features(train_ds, additional_train_ds)
+    # test just one ds
+    train_ds = unified_features(train_ds, additional_train_ds[0])
 
-    assert train_ds.features.type == additional_train_ds.features.type
+    assert train_ds.features.type == additional_train_ds[0].features.type
 
-    full_dataset = concatenate_datasets([train_ds, additional_train_ds])
+    full_dataset = concatenate_datasets([train_ds, *additional_train_ds])
 
     test_ds = load_dataset(train_cfg.test_dataset_path)
     full_dataset = full_dataset.shuffle(seed=0)  # Shuffle the training dataset, so train and val get equal contributions from all concatinated datasets
@@ -527,7 +531,10 @@ def train(train_cfg, vlm_cfg):
             logger.info("Training complete. Pushing model to Hugging Face Hub...")
             hf_model = VisionLanguageModel.from_pretrained(os.path.join(vlm_cfg.vlm_checkpoint_path, run_name))
 
-            model_name = f"{vlm_cfg.hf_repo_name}/nanoVLM-{vlm_cfg.lm_model_type}-{vlm_cfg.vit_model_type}"
+            lm_model_type = vlm_cfg.lm_model_type.replace("/", "-")
+            vit_model_type = vlm_cfg.vit_model_type.replace("/", "-")
+
+            model_name = f"{vlm_cfg.hf_repo_name}/nanoVLM-{lm_model_type}-{vit_model_type}"
 
             hf_model.push_to_hub(model_name, private=False)
         
