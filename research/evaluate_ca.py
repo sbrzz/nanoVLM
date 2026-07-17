@@ -227,7 +227,7 @@ def main():
     
     if ENABLE_STOCHASTIC:
         stem = datetime.now().strftime('%Y%m%d%H%M%S')
-        with open(Path(args.tmp_dir) / "{stem}_generated_content_stochastic.txt", "w") as f:
+        with open(Path(args.tmp_dir) / f"{stem}_generated_content_stochastic.txt", "w") as f:
             
             f.write(str(params) + "\n")
             
