@@ -31,7 +31,7 @@ def main():
     
     colors=[color_generator(name) for name in list_names]
     
-    plt.title("t-SNE on Modality Projection Embeddings from Prato della Valle Dataset")
+    plt.title("t-SNE of Modality Projector Embeddings from Prato della Valle Dataset (all statues)")
     plt.scatter(embeddings_tsne[:, 0], embeddings_tsne[:, 1], c=colors)
     plt.show()
 

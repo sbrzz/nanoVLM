@@ -1,10 +1,10 @@
-from datetime import datetime
 import pathlib
-import time
 
 import numpy as np
 import torch
 import argparse
+from pathlib import Path
+from datetime import datetime
 from datasets import load_dataset, Features, Dataset, Image, Value
 from tqdm import tqdm
 from torch.utils.data import DataLoader
@@ -14,6 +14,9 @@ from data.processors import get_image_processor, get_inference_augmenter, get_to
 from models.vision_language_model import VisionLanguageModel
 
 PUBLISH_TO_HUB = False
+ENABLE_GREEDY = False
+ENABLE_STOCHASTIC = True
+ENABLE_AUGMENTED = False
 
 def parse_args():
     
@@ -26,6 +29,9 @@ def parse_args():
     parser.add_argument("--prompt", type=str, default="Describe the art in this image", help="Text prompt to feed the model")
     parser.add_argument("--generations", type=int, default=1, help="Num. of outputs to generate")
     parser.add_argument("--eos_token_id", type=str, default=".", help="EOS token id to stop generation")
+    parser.add_argument("--temperature", type=float, default=0.5, help="Temperature for sampling")
+    parser.add_argument("--top_k", type=int, default=0, help="Top k for sampling")
+    parser.add_argument("--top_p", type=float, default=1.0, help="Top p for sampling")
     return parser.parse_args()
 
 
@@ -138,43 +144,56 @@ def main():
             
             if tokens.shape[0] != images.shape[0]:
                 tokens = tokens[:tokens.shape[0], ...]
+                
+                
+            if ENABLE_GREEDY:
             
-            """ Greedy generation """
+                """ Greedy generation """
+                
+                gen, mp_embedding = model.generate(tokens, images, max_new_tokens=100, greedy=True, return_mp_embedding=True)
+                out_greedy = tokenizer.batch_decode(gen, skip_special_tokens=True)
+                
+                out_greedy = first_sentence_filter(out_greedy)
+                generated_content_greedy.extend(out_greedy)
+                
+                # save mp_embedding
+                mp_embedding = mp_embedding.cpu().detach().numpy()
+                
+                if 'extra' in batch.keys():
+                    for i in range(len(images)):
+                        current_name = batch['extra'][i]["art_name"]
+                        current_name = current_name.replace(" ", "_")
+                        current_embedding = mp_embedding[i, :]
+                        stem = datetime.now().strftime('%Y%m%d%H%M%S%f')
+                        dest_path = pathlib.Path(args.tmp_dir) / "mp_embedding" / current_name / f"{stem}.npy"
+                        dest_path.parent.mkdir(parents=True, exist_ok=True)
+                        np.save(dest_path, current_embedding.reshape(-1))
+                        
+            if ENABLE_STOCHASTIC:
             
-            gen, mp_embedding = model.generate(tokens, images, max_new_tokens=100, greedy=True, return_mp_embedding=True)
-            out_greedy = tokenizer.batch_decode(gen, skip_special_tokens=True)
+                """ Stochastic generation """
+                
+                params = {
+                    "temperature": args.temperature,
+                    "top_k": args.top_k,
+                    "top_p": args.top_p,
+                }
+                
+                gen = model.generate(tokens, images, max_new_tokens=100, greedy=False, **params)
+                out_stochastic = tokenizer.batch_decode(gen, skip_special_tokens=True)
+                
+                out_stochastic = first_sentence_filter(out_stochastic)
+                generated_content_stochastic.extend(out_stochastic)
             
-            out_greedy = first_sentence_filter(out_greedy)
-            generated_content_greedy.extend(out_greedy)
+            if ENABLE_AUGMENTED:
             
-            # save mp_embedding
-            mp_embedding = mp_embedding.cpu().detach().numpy()
-            
-            if 'extra' in batch.keys():
-                for i in range(len(images)):
-                    current_name = batch['extra'][i]["art_name"]
-                    current_name = current_name.replace(" ", "_")
-                    current_embedding = mp_embedding[i, :]
-                    stem = datetime.now().strftime('%Y%m%d%H%M%S%f')
-                    dest_path = pathlib.Path(args.tmp_dir) / "mp_embedding" / current_name / f"{stem}.npy"
-                    dest_path.parent.mkdir(parents=True, exist_ok=True)
-                    np.save(dest_path, current_embedding.reshape(-1))
-            
-            """ Stochastic generation """
-            
-            gen = model.generate(tokens, images, max_new_tokens=100, greedy=False)
-            out_stochastic = tokenizer.batch_decode(gen, skip_special_tokens=True)
-            
-            out_stochastic = first_sentence_filter(out_stochastic)
-            generated_content_stochastic.extend(out_stochastic)
-            
-            """ Augmented generation """
-            
-            gen = model.generate(tokens, augmented_images, max_new_tokens=100)
-            out_augmented = tokenizer.batch_decode(gen, skip_special_tokens=True)
-            
-            out_augmented = first_sentence_filter(out_augmented)
-            generated_content_augmented.extend(out_augmented)
+                """ Augmented generation """
+                
+                gen = model.generate(tokens, augmented_images, max_new_tokens=100)
+                out_augmented = tokenizer.batch_decode(gen, skip_special_tokens=True)
+                
+                out_augmented = first_sentence_filter(out_augmented)
+                generated_content_augmented.extend(out_augmented)
             
             """ Other stuff """
                 
@@ -189,27 +208,39 @@ def main():
             print(e)
             continue
         
-        
-    name_in_description_greedy_accuracy = 0
-    name_in_description_stochastic_accuracy = 0
-    name_in_description_gen_aug_accuracy = 0
-    for gen_greedy, gen_stochastic, gen_aug, art_name in zip(generated_content_greedy, generated_content_stochastic, generated_content_augmented, art_names):
-        if art_name in gen_greedy:
-            name_in_description_greedy_accuracy += 1
-        if art_name in gen_stochastic:
-            name_in_description_stochastic_accuracy += 1
-        if art_name in gen_aug:
-            name_in_description_gen_aug_accuracy += 1
-            
-    print(f"Name in description greedy accuracy: {name_in_description_greedy_accuracy / len(generated_content_greedy)}")
-    print(f"Name in description stochastic accuracy: {name_in_description_stochastic_accuracy / len(generated_content_greedy)}")
-    print(f"Name in description gen_aug accuracy: {name_in_description_gen_aug_accuracy / len(generated_content_greedy)}")
     
-    """
-    Name in description greedy accuracy: 0.8320754716981132
-    Name in description stochastic accuracy: 0.8089622641509434
-    Name in description gen_aug accuracy: 0.7235849056603774
-    """
+    if ENABLE_GREEDY and ENABLE_STOCHASTIC and ENABLE_AUGMENTED:
+        name_in_description_greedy_accuracy = 0
+        name_in_description_stochastic_accuracy = 0
+        name_in_description_gen_aug_accuracy = 0
+        for gen_greedy, gen_stochastic, gen_aug, art_name in zip(generated_content_greedy, generated_content_stochastic, generated_content_augmented, art_names):
+            if art_name in gen_greedy:
+                name_in_description_greedy_accuracy += 1
+            if art_name in gen_stochastic:
+                name_in_description_stochastic_accuracy += 1
+            if art_name in gen_aug:
+                name_in_description_gen_aug_accuracy += 1
+                
+        print(f"Name in description greedy accuracy: {name_in_description_greedy_accuracy / len(generated_content_greedy)}")
+        print(f"Name in description stochastic accuracy: {name_in_description_stochastic_accuracy / len(generated_content_greedy)}")
+        print(f"Name in description gen_aug accuracy: {name_in_description_gen_aug_accuracy / len(generated_content_greedy)}")
+    
+    if ENABLE_STOCHASTIC:
+        stem = datetime.now().strftime('%Y%m%d%H%M%S')
+        with open(Path(args.tmp_dir) / "{stem}_generated_content_stochastic.txt", "w") as f:
+            
+            f.write(str(params) + "\n")
+            
+            for item in generated_content_stochastic:
+             
+                item = item.encode('utf-8', 'ignore').decode('utf-8')
+                
+                try:
+                    f.write(item + "\n")
+                except Exception as e:
+                    print(item)
+                    print(e)
+                    continue
         
     if PUBLISH_TO_HUB:
         print("Publish to hub")
