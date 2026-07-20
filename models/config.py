@@ -39,6 +39,7 @@ class VLMConfig:
     vlm_load_backbone_weights: bool = True
     vlm_checkpoint_path: str = 'checkpoints/20260624_01'
     hf_repo_name: str = 'cultural-arts'
+    hf_vlm_version: str = 'placeholder'
 
 
 @dataclass

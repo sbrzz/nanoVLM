@@ -177,6 +177,7 @@ def main():
                     "temperature": args.temperature,
                     "top_k": args.top_k,
                     "top_p": args.top_p,
+                    "hf_model": args.hf_model
                 }
                 
                 gen = model.generate(tokens, images, max_new_tokens=100, greedy=False, **params)
@@ -228,7 +229,6 @@ def main():
     if ENABLE_STOCHASTIC:
         stem = datetime.now().strftime('%Y%m%d%H%M%S')
         with open(Path(args.tmp_dir) / f"{stem}_generated_content_stochastic.txt", "w") as f:
-            
             f.write(str(params) + "\n")
             
             for item in generated_content_stochastic:
