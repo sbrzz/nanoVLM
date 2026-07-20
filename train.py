@@ -534,7 +534,7 @@ def train(train_cfg, vlm_cfg):
             lm_model_type = vlm_cfg.lm_model_type.replace("/", "-")
             vit_model_type = vlm_cfg.vit_model_type.replace("/", "-")
 
-            model_name = f"{vlm_cfg.hf_repo_name}/nanoVLM-{lm_model_type}-{vit_model_type}"
+            model_name = f"{vlm_cfg.hf_repo_name}/nanoVLM-{lm_model_type}-{vit_model_type}-{vlm_cfg.hf_vlm_version}"
 
             hf_model.push_to_hub(model_name, private=False)
         

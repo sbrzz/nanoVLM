@@ -12,7 +12,7 @@ class VLMConfig:
     vit_n_blocks: int = 12
     vit_ln_eps: float = 1e-6
     vit_cls_flag: bool = False
-    vit_model_type: str = 'google/siglip-base-patch16-224'
+    vit_model_type: str = 'google/siglip2-base-patch16-224'
 
     lm_hidden_dim: int = 576
     lm_inter_dim: int = 1536
@@ -37,8 +37,9 @@ class VLMConfig:
     mp_pixel_shuffle_factor: int = 2
 
     vlm_load_backbone_weights: bool = True
-    vlm_checkpoint_path: str = 'checkpoints/20260624_01'
+    vlm_checkpoint_path: str = 'checkpoints/research'
     hf_repo_name: str = 'cultural-arts'
+    hf_vlm_version: str = 'v1.4'
 
 
 @dataclass
